@@ -1,6 +1,11 @@
-# Variables and data types
+# Books in library stored as list
+
+libraryBooks = []
+
+# Function to create book (Variables and data types)
 
 def create_book(title: str, author: str, genre: str, year: int, rating: float, availability: bool, quantity: int):
+    # Book created as tuple
     book = (
         title, 
         author, 
@@ -12,10 +17,12 @@ def create_book(title: str, author: str, genre: str, year: int, rating: float, a
         )
     return book
 
-# Inputs
+# Taking input from librarian for creating books to be added to library (Input)
 
 def add_book():
+    print("\n------------------------------------------------------------")
     print("Enter the details of the book that you want to add.")
+    print("------------------------------------------------------------")
     title = input("Title: ").strip()
     author = input("Author's name: ").strip()
     genre = input("Genre: ").strip()
@@ -60,10 +67,22 @@ def add_book():
         availability = False
         quantity = 0
 
-    book1 = create_book(title, author, genre, year, rating, quantity, availability)
-    print("\n Book successfully created!")
+    bookCreated = create_book(title, author, genre, year, rating, quantity, availability)
+    
+    libraryBooks.append(bookCreated)
+    print("------------------------------------------------------------")
+    print("Book successfully added!")
+    print("------------------------------------------------------------")
 
-    return book1
+def run_library_system():
+    print("\nWelcome to Library Management System!")
 
-add_book()
+    while True:
+        add_book()
 
+        again = input("\nWould you like to add another book? (yes/no): ").strip().lower()
+        if again != 'yes':
+            print("Thank you!")
+            break
+
+run_library_system()
