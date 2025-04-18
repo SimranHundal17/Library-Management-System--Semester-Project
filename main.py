@@ -5,7 +5,7 @@ libraryBooks = []
 # Function to create book (Variables and data types)
 
 def create_book(title: str, author: str, genre: str, year: int, rating: float, availability: bool, quantity: int):
-    # Book created as tuple
+    # Information of book stored as tuple
     book = (
         title, 
         author, 
@@ -74,15 +74,39 @@ def add_book():
     print("Book successfully added!")
     print("------------------------------------------------------------")
 
+# for loop used to count the number of physically available books in the library
+def count_of_all_physical_books():
+    count = 0
+    for book in libraryBooks:
+        if book[5] == True:
+            count += 1
+    return count
+
 def run_library_system():
     print("\nWelcome to Library Management System!")
+    while(True):
+        print("\nPlease select an option:")
+        print("1. Add a new book to the library")
+        print("2. View total number of available physical books")
+        option = int(input("Enter 1 or 2: "))
 
-    while True:
-        add_book()
-
-        again = input("\nWould you like to add another book? (yes/no): ").strip().lower()
-        if again != 'yes':
-            print("Thank you!")
+        if option == 1:
+            while True:
+                add_book()
+                again = input("\nWould you like to add another book? (yes/no): ").strip().lower()
+                if again != 'yes':
+                    print("\nThank you!")
+                    break
+        elif option == 2:
+            print("\n------------------------------------------------------------")
+            print(f"Total number of physically available books = {count_of_all_physical_books()}")
+            print("------------------------------------------------------------")
+        else:
+            print("Invalid option.Type 1 or 2.")
+        
+        anotherOption = input("\nWould you like to do another task? (yes/no): ").strip().lower()
+        if anotherOption != 'yes':
+            print("\nThank you for using the Library Management System!")
             break
 
 run_library_system()
