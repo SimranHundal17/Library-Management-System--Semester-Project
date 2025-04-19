@@ -8,7 +8,8 @@ def create_book(title: str, author: str, genre: str, year: int, rating: float, a
     # Information of book stored as tuple
     book = (
         title, 
-        author, 
+        author,
+        genre, 
         year, 
         rating, 
         availability,
@@ -67,7 +68,7 @@ def add_book():
         availability = False
         quantity = 0
 
-    bookCreated = create_book(title, author, genre, year, rating, quantity, availability)
+    bookCreated = create_book(title, author, genre, year, rating, availability, quantity)
     
     libraryBooks.append(bookCreated)
     print("------------------------------------------------------------")
@@ -76,11 +77,35 @@ def add_book():
 
 # for loop used to count the number of physically available books in the library
 def count_of_all_physical_books():
+    already_counted = set()
     count = 0
+
     for book in libraryBooks:
-        if book[5] == True:
+        title = book[0].lower()
+        if title not in already_counted and book[5] == True:
             count += 1
+            already_counted.add(title)
+
     return count
+
+# recursion used to compute total number of physical copies having the same title
+def total_physical_copies_by_title(title, index=0, total=0, found=False):
+    if index >= len(libraryBooks):
+        print("------------------------------------------------------------")
+        if found: 
+            print(f"Total available physical copies of '{title}': {total}")
+        else:
+            print(f"Book titled '{title}' not found in the library.")
+        print("------------------------------------------------------------")
+        return
+    
+    book = libraryBooks[index]
+    if book[0].lower() == title:
+        found = True
+        if book[5] == True:
+            total += book[6]
+
+    total_physical_copies_by_title(title, index + 1, total, found)
 
 def run_library_system():
     print("\nWelcome to Library Management System!")
@@ -88,7 +113,8 @@ def run_library_system():
         print("\nPlease select an option:")
         print("1. Add a new book to the library")
         print("2. View total number of available physical books")
-        option = int(input("Enter 1 or 2: "))
+        print("3. Compute total physical copies of a book by title")
+        option = int(input("Enter 1, 2, or 3: "))
 
         if option == 1:
             while True:
@@ -101,8 +127,12 @@ def run_library_system():
             print("\n------------------------------------------------------------")
             print(f"Total number of physically available books = {count_of_all_physical_books()}")
             print("------------------------------------------------------------")
+        elif option == 3:
+            print("\n------------------------------------------------------------")
+            title = input("Enter the title: ").strip().lower()
+            total_physical_copies_by_title(title)            
         else:
-            print("Invalid option.Type 1 or 2.")
+            print("Invalid option.Type 1, 2, or 3.")
         
         anotherOption = input("\nWould you like to do another task? (yes/no): ").strip().lower()
         if anotherOption != 'yes':
