@@ -107,6 +107,20 @@ def total_physical_copies_by_title(title, index=0, total=0, found=False):
 
     total_physical_copies_by_title(title, index + 1, total, found)
 
+def display_all_books():
+    if not libraryBooks:
+        print("------------------------------------------------------------")
+        print("No books in the library yet.")
+        print("------------------------------------------------------------")
+        return
+
+    print("------------------------------------------------------------")
+    print("All Books in the Library:")
+    for idx, book in enumerate(libraryBooks, 1):
+        print(f"{idx}. '{book[0]}' by {book[1]} ({book[3]}) | Genre: {book[2]} | Rating: {book[4]}/5 | Available: {'Yes' if book[5] else 'No'} | Copies: {book[6]}")
+    print("------------------------------------------------------------")
+
+
 # Class that includes internal functions to perform some library analytics
 class LibraryAnalytics:
     def __init__(self, books):
@@ -159,15 +173,16 @@ def run_library_system():
         print("1. Add a new book to the library")
         print("2. View total number of available physical books")
         print("3. Compute total physical copies of a book by title")
-        print("4. Show highest rated book")
-        print("5. Count books by a specific author")
-        print("6. Count books from a specific genre")
+        print("4. Display all books in the library")
+        print("5. Show highest rated book")
+        print("6. Count books by a specific author")
+        print("7. Count books from a specific genre")
 
         while(True):
             try:
-                option = int(input("\nEnter 1 to 6: "))
+                option = int(input("\nEnter 1 to 7: "))
                 if option < 1 or option > 6:
-                    print("Please enter a number between 1 and 6.")
+                    print("Please enter a number between 1 and 7.")
                     continue
                 break
             except ValueError:
@@ -189,17 +204,19 @@ def run_library_system():
             title = input("Enter the title: ").strip().lower()
             total_physical_copies_by_title(title)
         elif option == 4:
-            analytics.highest_rated_book()
+            display_all_books()
         elif option == 5:
+            analytics.highest_rated_book()
+        elif option == 6:
             print("\n------------------------------------------------------------")
             author = input("Enter author's name: ")
             analytics.count_books_by_author(author)
-        elif option == 6:  
+        elif option == 7:  
             print("\n------------------------------------------------------------") 
             genre = input("Enter the genre: ")
             analytics.count_books_by_genre(genre)         
         else:
-            print("Invalid option.Type a number between 1 to 6.")
+            print("Invalid option.Type a number between 1 to 7.")
         
         anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
         if anotherOption != 'yes':
