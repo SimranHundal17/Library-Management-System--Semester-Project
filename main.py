@@ -88,7 +88,7 @@ def count_of_all_physical_books():
 
     return count
 
-# recursion used to compute total number of physical copies having the same title
+# Recursion used to compute total number of physical copies having the same title
 def total_physical_copies_by_title(title, index=0, total=0, found=False):
     if index >= len(libraryBooks):
         print("------------------------------------------------------------")
@@ -107,19 +107,76 @@ def total_physical_copies_by_title(title, index=0, total=0, found=False):
 
     total_physical_copies_by_title(title, index + 1, total, found)
 
+# Class that includes internal functions to perform some library analytics
+class LibraryAnalytics:
+    def __init__(self, books):
+        self.books = books
+
+    def highest_rated_book(self):
+        if len(self.books) == 0:
+            print("------------------------------------------------------------")
+            print("No books available in the library.")
+            print("------------------------------------------------------------")
+            return
+        
+        highest = self.books[0]
+        for book in self.books[1:]:
+            if book[4] >highest[4]:
+                highest = book
+        
+        print("------------------------------------------------------------")
+        print(f"Highest Rated Book: '{highest[0]}' with ({highest[4]}/5.0)")
+        print("------------------------------------------------------------")
+
+    def count_books_by_author(self, author_name):
+        count = 0
+
+        for book in self.books:
+            if book[1].lower() == author_name.strip().lower():
+                count += 1
+        
+        print("------------------------------------------------------------")
+        print(f"Books by '{author_name}': {count}")
+        print("------------------------------------------------------------")
+
+    def count_books_by_genre(self, genre_name):
+        count = 0
+
+        for book in self.books:
+            if book[2].lower() == genre_name.lower():
+                count += 1
+
+        print("------------------------------------------------------------")
+        print(f"Books in genre '{genre_name}': {count}")
+        print("------------------------------------------------------------")
+
 def run_library_system():
     print("\nWelcome to Library Management System!")
+    analytics = LibraryAnalytics(libraryBooks)
+
     while(True):
         print("\nPlease select an option:")
         print("1. Add a new book to the library")
         print("2. View total number of available physical books")
         print("3. Compute total physical copies of a book by title")
-        option = int(input("Enter 1, 2, or 3: "))
+        print("4. Show highest rated book")
+        print("5. Count books by a specific author")
+        print("6. Count books from a specific genre")
+
+        while(True):
+            try:
+                option = int(input("\nEnter 1 to 6: "))
+                if option < 1 or option > 6:
+                    print("Please enter a number between 1 and 6.")
+                    continue
+                break
+            except ValueError:
+                print("Invalid input. Please enter a number.")
 
         if option == 1:
             while True:
                 add_book()
-                again = input("\nWould you like to add another book? (yes/no): ").strip().lower()
+                again = input("\nWould you like to add another book? Type 'yes' to continue or any other key to exit: ").strip().lower()
                 if again != 'yes':
                     print("\nThank you!")
                     break
@@ -130,11 +187,21 @@ def run_library_system():
         elif option == 3:
             print("\n------------------------------------------------------------")
             title = input("Enter the title: ").strip().lower()
-            total_physical_copies_by_title(title)            
+            total_physical_copies_by_title(title)
+        elif option == 4:
+            analytics.highest_rated_book()
+        elif option == 5:
+            print("\n------------------------------------------------------------")
+            author = input("Enter author's name: ")
+            analytics.count_books_by_author(author)
+        elif option == 6:  
+            print("\n------------------------------------------------------------") 
+            genre = input("Enter the genre: ")
+            analytics.count_books_by_genre(genre)         
         else:
-            print("Invalid option.Type 1, 2, or 3.")
+            print("Invalid option.Type a number between 1 to 6.")
         
-        anotherOption = input("\nWould you like to do another task? (yes/no): ").strip().lower()
+        anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
         if anotherOption != 'yes':
             print("\nThank you for using the Library Management System!")
             break
