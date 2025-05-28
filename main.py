@@ -1,226 +1,223 @@
-# Books in library stored as list
+from typing import List, Optional, Tuple
+from datetime import datetime
 
-libraryBooks = []
+class LibraryItem:
+    """Parent class for all library-related objects"""
+    def __init__(self, title: str):
+        self.title = title
 
-# Function to create book (Variables and data types)
+class Book(LibraryItem):
+    """Handles individual book data"""
+    def __init__(self, title: str, author: str, genre: str, year: int, rating: float, availability: bool, quantity: int):
+        super().__init__(title)
+        self.author = author
+        self.genre = genre
+        self.year = year
+        self.rating = rating
+        self.availability = availability
+        self.quantity = quantity
+        self.history: List[Tuple[datetime, str, str]] = []
+        self._add_to_history("created", "Book added to library")
 
-def create_book(title: str, author: str, genre: str, year: int, rating: float, availability: bool, quantity: int):
-    # Information of book stored as tuple
-    book = (
-        title, 
-        author,
-        genre, 
-        year, 
-        rating, 
-        availability,
-        quantity, 
-        (title, author, genre, year), 
-        )
-    return book
+    def _add_to_history(self, action: str, details: str) -> None:
+        self.history.append((datetime.now(), action, details))
 
-# Taking input from librarian for creating books to be added to library (Input)
+    def update_quantity(self, new_quantity: int) -> None:
+        old_quantity = self.quantity
+        self.quantity = new_quantity
+        self.availability = new_quantity > 0
+        self._add_to_history("quantity_update", f"Quantity changed from {old_quantity} to {new_quantity}")
 
-def add_book():
-    print("\n------------------------------------------------------------")
-    print("Enter the details of the book that you want to add.")
-    print("------------------------------------------------------------")
-    title = input("Title: ").strip()
-    author = input("Author's name: ").strip()
-    genre = input("Genre: ").strip()
+    def get_history(self) -> List[Tuple[datetime, str, str]]:
+        return self.history
 
-    while True:
-        try:
-            year = int(input("Year of publication: ").strip())
-            if year <= 2025:
-                break
-            else:
-                print("Enter valid year.")
-        except ValueError:
-            print("Invalid year. Please enter a valid integer.")
+    def __str__(self) -> str:
+        return f"'{self.title}' by {self.author} ({self.year}) | Genre: {self.genre} | Rating: {self.rating}/5 | Available: {'Yes' if self.availability else 'No'} | Copies: {self.quantity}"
 
-    while True:
-        try:
-            rating = float(input("Rating (between 1 to 5, e.g. 4.6): ").strip())
-            if 1.0 <= rating and rating <= 5.0:
-                break
-            else:
-                print("Rating must be between 1 and 5.")
-        except ValueError:
-            print("Invalid rating. Please enter a decimal number like 4.6.")
+class BookInventory(LibraryItem):
+    """Handles book collection and inventory management"""
+    def __init__(self):
+        super().__init__("Library Inventory")
+        self.books: List[Book] = []
 
-    while True:
-        availability_input = input("Is any physical copy available in the library? (yes/no): ").strip().lower()
-        if availability_input in ['yes', 'no']:
-            break
-        else:
-            print("Please type 'yes' or 'no'.")
+    def add_book(self, book: Book) -> None:
+        self.books.append(book)
 
-    if availability_input == 'yes':
-        availability = True
+    def recursive_search_by_title(self, title: str, index: int = 0) -> Optional[Book]:
+        """Recursively search for a book by title"""
+        if index >= len(self.books):
+            return None
+        if self.books[index].title.lower() == title.lower():
+            return self.books[index]
+        return self.recursive_search_by_title(title, index + 1)
+
+    def find_book_by_title(self, title: str) -> Optional[Book]:
+        return self.recursive_search_by_title(title)
+
+class BookAnalytics(LibraryItem):
+    """Handles book statistics and analysis"""
+    def __init__(self, books: List[Book]):
+        super().__init__("Library Analytics")
+        self.books = books
+
+    def get_highest_rated_book(self) -> Optional[Book]:
+        if not self.books:
+            print("\n------------------------------------------------------------")
+            print("No books available in the library.")
+            print("------------------------------------------------------------")
+            return None
+        return max(self.books, key=lambda x: x.rating)
+
+class BookUI(LibraryItem):
+    """Handles user interface and input/output operations"""
+    def __init__(self, inventory: BookInventory, analytics: BookAnalytics):
+        super().__init__("Library Interface")
+        self.inventory = inventory
+        self.analytics = analytics
+
+    def print_separator(self, message: str = ""):
+        print("\n------------------------------------------------------------")
+        if message:
+            print(message)
+            print("------------------------------------------------------------")
+
+    def add_book_ui(self):
+        self.print_separator("Enter the details of the book that you want to add.")
+        
+        title = input("Title: ").strip()
+        author = input("Author's name: ").strip()
+        genre = input("Genre: ").strip()
 
         while True:
             try:
-                quantity = int(input("How many copies are available: ").strip())
-                break
-            except ValueError:
-                print("Invalid quantity. Please enter a whole number.")
-    else:
-        availability = False
-        quantity = 0
-
-    bookCreated = create_book(title, author, genre, year, rating, availability, quantity)
-    
-    libraryBooks.append(bookCreated)
-    print("------------------------------------------------------------")
-    print("Book successfully added!")
-    print("------------------------------------------------------------")
-
-# for loop used to count the number of physically available books in the library
-def count_of_all_physical_books():
-    already_counted = set()
-    count = 0
-
-    for book in libraryBooks:
-        title = book[0].lower()
-        if title not in already_counted and book[5] == True:
-            count += 1
-            already_counted.add(title)
-
-    return count
-
-# Recursion used to compute total number of physical copies having the same title
-def total_physical_copies_by_title(title, index=0, total=0, found=False):
-    if index >= len(libraryBooks):
-        print("------------------------------------------------------------")
-        if found: 
-            print(f"Total available physical copies of '{title}': {total}")
-        else:
-            print(f"Book titled '{title}' not found in the library.")
-        print("------------------------------------------------------------")
-        return
-    
-    book = libraryBooks[index]
-    if book[0].lower() == title:
-        found = True
-        if book[5] == True:
-            total += book[6]
-
-    total_physical_copies_by_title(title, index + 1, total, found)
-
-def display_all_books():
-    if not libraryBooks:
-        print("------------------------------------------------------------")
-        print("No books in the library yet.")
-        print("------------------------------------------------------------")
-        return
-
-    print("------------------------------------------------------------")
-    print("All Books in the Library:")
-    for idx, book in enumerate(libraryBooks, 1):
-        print(f"{idx}. '{book[0]}' by {book[1]} ({book[3]}) | Genre: {book[2]} | Rating: {book[4]}/5 | Available: {'Yes' if book[5] else 'No'} | Copies: {book[6]}")
-    print("------------------------------------------------------------")
-
-
-# Class that includes internal functions to perform some library analytics
-class LibraryAnalytics:
-    def __init__(self, books):
-        self.books = books
-
-    def highest_rated_book(self):
-        if len(self.books) == 0:
-            print("------------------------------------------------------------")
-            print("No books available in the library.")
-            print("------------------------------------------------------------")
-            return
-        
-        highest = self.books[0]
-        for book in self.books[1:]:
-            if book[4] >highest[4]:
-                highest = book
-        
-        print("------------------------------------------------------------")
-        print(f"Highest Rated Book: '{highest[0]}' with ({highest[4]}/5.0)")
-        print("------------------------------------------------------------")
-
-    def count_books_by_author(self, author_name):
-        count = 0
-
-        for book in self.books:
-            if book[1].lower() == author_name.strip().lower():
-                count += 1
-        
-        print("------------------------------------------------------------")
-        print(f"Books by '{author_name}': {count}")
-        print("------------------------------------------------------------")
-
-    def count_books_by_genre(self, genre_name):
-        count = 0
-
-        for book in self.books:
-            if book[2].lower() == genre_name.lower():
-                count += 1
-
-        print("------------------------------------------------------------")
-        print(f"Books in genre '{genre_name}': {count}")
-        print("------------------------------------------------------------")
-
-def run_library_system():
-    print("\nWelcome to Library Management System!")
-    analytics = LibraryAnalytics(libraryBooks)
-
-    while(True):
-        print("\nPlease select an option:")
-        print("1. Add a new book to the library")
-        print("2. View total number of available physical books")
-        print("3. Compute total physical copies of a book by title")
-        print("4. Display all books in the library")
-        print("5. Show highest rated book")
-        print("6. Count books by a specific author")
-        print("7. Count books from a specific genre")
-
-        while(True):
-            try:
-                option = int(input("\nEnter 1 to 7: "))
-                if option < 1 or option > 6:
-                    print("Please enter a number between 1 and 7.")
-                    continue
-                break
-            except ValueError:
-                print("Invalid input. Please enter a number.")
-
-        if option == 1:
-            while True:
-                add_book()
-                again = input("\nWould you like to add another book? Type 'yes' to continue or any other key to exit: ").strip().lower()
-                if again != 'yes':
-                    print("\nThank you!")
+                year = int(input("Year of publication: ").strip())
+                if year <= 2025:
                     break
-        elif option == 2:
-            print("\n------------------------------------------------------------")
-            print(f"Total number of physically available books = {count_of_all_physical_books()}")
-            print("------------------------------------------------------------")
-        elif option == 3:
-            print("\n------------------------------------------------------------")
-            title = input("Enter the title: ").strip().lower()
-            total_physical_copies_by_title(title)
-        elif option == 4:
-            display_all_books()
-        elif option == 5:
-            analytics.highest_rated_book()
-        elif option == 6:
-            print("\n------------------------------------------------------------")
-            author = input("Enter author's name: ")
-            analytics.count_books_by_author(author)
-        elif option == 7:  
-            print("\n------------------------------------------------------------") 
-            genre = input("Enter the genre: ")
-            analytics.count_books_by_genre(genre)         
-        else:
-            print("Invalid option.Type a number between 1 to 7.")
-        
-        anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
-        if anotherOption != 'yes':
-            print("\nThank you for using the Library Management System!")
-            break
+                print("Enter valid year.")
+            except ValueError:
+                print("Invalid year. Please enter a valid integer.")
 
-run_library_system()
+        while True:
+            try:
+                rating = float(input("Rating (between 1 to 5, e.g. 4.6): ").strip())
+                if 1.0 <= rating <= 5.0:
+                    break
+                print("Rating must be between 1 and 5.")
+            except ValueError:
+                print("Invalid rating. Please enter a decimal number like 4.6.")
+
+        while True:
+            availability_input = input("Is any physical copy available in the library? (yes/no): ").strip().lower()
+            if availability_input in ['yes', 'no']:
+                break
+            print("Please type 'yes' or 'no'.")
+
+        quantity = 0
+        if availability_input == 'yes':
+            availability = True
+            while True:
+                try:
+                    quantity = int(input("How many copies are available: ").strip())
+                    if quantity >= 0:
+                        break
+                    print("Quantity must be 0 or positive.")
+                except ValueError:
+                    print("Invalid quantity. Please enter a whole number.")
+        else:
+            availability = False
+
+        book = Book(title, author, genre, year, rating, availability, quantity)
+        self.inventory.add_book(book)
+        self.print_separator("Book successfully added!")
+
+    def display_all_books(self):
+        if not self.inventory.books:
+            self.print_separator("No books in the library yet.")
+            return
+
+        self.print_separator()
+        print("All Books in the Library:")
+        for idx, book in enumerate(self.inventory.books, 1):
+            print(f"{idx}. {str(book)}")
+        print("------------------------------------------------------------")
+
+    def view_book_history(self):
+        title = input("\nEnter the title of the book to view history: ").strip()
+        book = self.inventory.find_book_by_title(title)
+        
+        if book:
+            self.print_separator(f"History for '{book.title}':")
+            for timestamp, action, details in book.get_history():
+                print(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {action}: {details}")
+        else:
+            self.print_separator(f"Book titled '{title}' not found in the library.")
+
+    def update_book_quantity(self):
+        title = input("\nEnter the title of the book to update quantity: ").strip()
+        book = self.inventory.find_book_by_title(title)
+        
+        if book:
+            print(f"Current quantity: {book.quantity}")
+            while True:
+                try:
+                    new_quantity = int(input("Enter new quantity: ").strip())
+                    if new_quantity >= 0:
+                        book.update_quantity(new_quantity)
+                        self.print_separator("Quantity updated successfully!")
+                        break
+                    print("Quantity must be 0 or positive.")
+                except ValueError:
+                    print("Invalid quantity. Please enter a whole number.")
+        else:
+            self.print_separator(f"Book titled '{title}' not found in the library.")
+
+    def run_library_system(self):
+        print("\nWelcome to Library Management System!")
+
+        while True:
+            print("\nPlease select an option:")
+            print("1. Add a new book to the library")
+            print("2. Display all books in the library")
+            print("3. Show highest rated book")
+            print("4. View book history")
+            print("5. Update book quantity")
+
+            while True:
+                try:
+                    option = int(input("\nEnter 1 to 5: "))
+                    if 1 <= option <= 5:
+                        break
+                    print("Please enter a number between 1 and 5.")
+                except ValueError:
+                    print("Invalid input. Please enter a number.")
+
+            if option == 1:
+                while True:
+                    self.add_book_ui()
+                    again = input("\nWould you like to add another book? Type 'yes' to continue or any other key to exit: ").strip().lower()
+                    if again != 'yes':
+                        print("\nThank you!")
+                        break
+            elif option == 2:
+                self.display_all_books()
+            elif option == 3:
+                highest_rated = self.analytics.get_highest_rated_book()
+                if highest_rated:
+                    self.print_separator(f"Highest Rated Book: '{highest_rated.title}' with ({highest_rated.rating}/5.0)")
+            elif option == 4:
+                self.view_book_history()
+            elif option == 5:
+                self.update_book_quantity()
+            
+            anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
+            if anotherOption != 'yes':
+                print("\nThank you for using the Library Management System!")
+                break
+
+# Create instances and run the system
+inventory = BookInventory()
+analytics = BookAnalytics(inventory.books)
+ui = BookUI(inventory, analytics)
+
+if __name__ == "__main__":
+    ui.run_library_system()
