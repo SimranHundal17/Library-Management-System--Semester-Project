@@ -68,6 +68,67 @@ class BookAnalytics(LibraryItem):
             return None
         return max(self.books, key=lambda x: x.rating)
 
+    def bubble_sort_by_rating(self) -> List[Book]:
+        """Sort books by rating using bubble sort (loop-based)"""
+        # Create a copy to avoid modifying original list
+        books_to_sort = self.books.copy()
+        n = len(books_to_sort)
+
+        # Bubble sort algorithm
+        for i in range(n):
+            # Last i elements are already in place
+            for j in range(0, n - i - 1):
+                # Swap if the rating of current book is less than next book
+                if books_to_sort[j].rating < books_to_sort[j + 1].rating:
+                    # Swap books
+                    books_to_sort[j], books_to_sort[j + 1] = books_to_sort[j + 1], books_to_sort[j]
+
+        return books_to_sort
+
+    def merge_sort_by_title(self, books: List[Book]) -> List[Book]:
+        """Sort books by title using merge sort (recursive)"""
+        # Base case: if list has 1 or fewer books, it's already sorted
+        if len(books) <= 1:
+            return books
+
+        # Split the list into two halves
+        mid = len(books) // 2
+        left_half = books[:mid]
+        right_half = books[mid:]
+
+        # Recursively sort both halves
+        left_half = self.merge_sort_by_title(left_half)
+        right_half = self.merge_sort_by_title(right_half)
+
+        # Merge the sorted halves
+        return self._merge_sorted_lists(left_half, right_half)
+
+    def _merge_sorted_lists(self, left: List[Book], right: List[Book]) -> List[Book]:
+        """Helper method to merge two sorted lists of books by title"""
+        merged = []
+        left_index = right_index = 0
+
+        # Compare and merge books based on title
+        while left_index < len(left) and right_index < len(right):
+            if left[left_index].title.lower() <= right[right_index].title.lower():
+                merged.append(left[left_index])
+                left_index += 1
+            else:
+                merged.append(right[right_index])
+                right_index += 1
+
+        # Add remaining books from left list
+        while left_index < len(left):
+            merged.append(left[left_index])
+            left_index += 1
+
+        # Add remaining books from right list
+        while right_index < len(right):
+            merged.append(right[right_index])
+            right_index += 1
+
+        return merged
+
 class BookUI(LibraryItem):
     """Handles user interface and input/output operations"""
     def __init__(self, inventory: BookInventory, analytics: BookAnalytics):
@@ -171,6 +232,35 @@ class BookUI(LibraryItem):
         else:
             self.print_separator(f"Book titled '{title}' not found in the library.")
 
+    def display_sorted_books(self):
+        if not self.inventory.books:
+            self.print_separator("No books in the library yet.")
+            return
+
+        print("\nSort books by:")
+        print("1. Rating (using Bubble Sort)")
+        print("2. Title (using Merge Sort)")
+
+        while True:
+            try:
+                choice = int(input("\nEnter your choice (1-2): "))
+                if 1 <= choice <= 2:
+                    break
+                print("Please enter either 1 or 2.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+
+        if choice == 1:
+            sorted_books = self.analytics.bubble_sort_by_rating()
+            self.print_separator("Books sorted by rating (highest to lowest):")
+        else:
+            sorted_books = self.analytics.merge_sort_by_title(self.inventory.books.copy())
+            self.print_separator("Books sorted by title (A to Z):")
+
+        for idx, book in enumerate(sorted_books, 1):
+            print(f"{idx}. {str(book)}")
+        print("------------------------------------------------------------")
+
     def run_library_system(self):
         print("\nWelcome to Library Management System!")
 
@@ -181,13 +271,14 @@ class BookUI(LibraryItem):
             print("3. Show highest rated book")
             print("4. View book history")
             print("5. Update book quantity")
+            print("6. Sort and display books")
 
             while True:
                 try:
-                    option = int(input("\nEnter 1 to 5: "))
-                    if 1 <= option <= 5:
+                    option = int(input("\nEnter 1 to 6: "))
+                    if 1 <= option <= 6:
                         break
-                    print("Please enter a number between 1 and 5.")
+                    print("Please enter a number between 1 and 6.")
                 except ValueError:
                     print("Invalid input. Please enter a number.")
 
@@ -208,6 +299,8 @@ class BookUI(LibraryItem):
                 self.view_book_history()
             elif option == 5:
                 self.update_book_quantity()
+            elif option == 6:
+                self.display_sorted_books()
             
             anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
             if anotherOption != 'yes':
