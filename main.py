@@ -43,6 +43,73 @@ class BookInventory(LibraryItem):
     def add_book(self, book: Book) -> None:
         self.books.append(book)
 
+    def custom_binary_search(self, target_rating: float, target_year: int) -> List[Book]:
+        """Custom binary search that finds books based on rating AND year criteria.
+        Uses binary search with rating as primary key, then evaluates year condition.
+        Returns books where:
+        1. Book rating is equal to target_rating AND
+        2. Book year is greater than or equal to target_year
+        
+        This is a custom implementation that:
+        - Uses binary search pattern but with multiple criteria
+        - Implements logical AND in the evaluation
+        - Works on sorted and unsorted portions of data
+        - Handles duplicate ratings
+        """
+        # First sort books by rating (primary search key)
+        sorted_books = sorted(self.books, key=lambda x: x.rating)
+        results = []
+        
+        def binary_search_with_criteria(books: List[Book], left: int, right: int) -> None:
+            """Recursive binary search that also checks year criteria"""
+            if left > right:
+                return
+            
+            mid = (left + right) // 2
+            current_book = books[mid]
+            
+            # Complex logical expression evaluation:
+            # 1. Check if rating matches (primary condition)
+            # 2. If rating matches, check year condition
+            if current_book.rating == target_rating:
+                # When we find a rating match, we need to:
+                # a) Check if it meets the year condition
+                # b) Look for more matches in both directions
+                
+                # Check current book against all criteria
+                if current_book.year >= target_year:
+                    results.append(current_book)
+                
+                # Look for more matches to the left
+                # This handles cases where same rating appears multiple times
+                temp_left = mid - 1
+                while temp_left >= 0 and books[temp_left].rating == target_rating:
+                    if books[temp_left].year >= target_year:
+                        results.append(books[temp_left])
+                    temp_left -= 1
+                
+                # Look for more matches to the right
+                temp_right = mid + 1
+                while temp_right <= right and books[temp_right].rating == target_rating:
+                    if books[temp_right].year >= target_year:
+                        results.append(books[temp_right])
+                    temp_right += 1
+                
+                # Continue searching in both halves for any other matches
+                binary_search_with_criteria(books, left, temp_left)
+                binary_search_with_criteria(books, temp_right, right)
+                
+            elif current_book.rating < target_rating:
+                # Search in right half if current rating is less than target
+                binary_search_with_criteria(books, mid + 1, right)
+            else:
+                # Search in left half if current rating is greater than target
+                binary_search_with_criteria(books, left, mid - 1)
+        
+        # Start the recursive search
+        binary_search_with_criteria(sorted_books, 0, len(sorted_books) - 1)
+        return results
+
     def recursive_search_by_title(self, title: str, index: int = 0) -> Optional[Book]:
         """Recursively search for a book by title"""
         if index >= len(self.books):
@@ -261,6 +328,42 @@ class BookUI(LibraryItem):
             print(f"{idx}. {str(book)}")
         print("------------------------------------------------------------")
 
+    def custom_search_ui(self):
+        """UI for the custom binary search feature"""
+        self.print_separator("Custom Binary Search")
+        
+        # Get rating to search for
+        while True:
+            try:
+                target_rating = float(input("Enter the rating to search for (1-5): "))
+                if 1 <= target_rating <= 5:
+                    break
+                print("Rating must be between 1 and 5.")
+            except ValueError:
+                print("Please enter a valid number.")
+
+        # Get minimum year
+        while True:
+            try:
+                target_year = int(input("Enter the minimum year to search for: "))
+                if 1000 <= target_year <= 2024:
+                    break
+                print("Year must be between 1000 and 2024.")
+            except ValueError:
+                print("Please enter a valid year.")
+
+        # Perform search
+        results = self.inventory.custom_binary_search(target_rating, target_year)
+
+        # Display results
+        if results:
+            self.print_separator(f"Found {len(results)} book(s) matching criteria:")
+            print(f"Rating: {target_rating}, Year >= {target_year}")
+            for idx, book in enumerate(results, 1):
+                print(f"{idx}. {str(book)}")
+        else:
+            self.print_separator("No books found matching your criteria.")
+
     def run_library_system(self):
         print("\nWelcome to Library Management System!")
 
@@ -272,13 +375,14 @@ class BookUI(LibraryItem):
             print("4. View book history")
             print("5. Update book quantity")
             print("6. Sort and display books")
+            print("7. Custom binary search")  # Updated option
 
             while True:
                 try:
-                    option = int(input("\nEnter 1 to 6: "))
-                    if 1 <= option <= 6:
+                    option = int(input("\nEnter 1 to 7: "))
+                    if 1 <= option <= 7:
                         break
-                    print("Please enter a number between 1 and 6.")
+                    print("Please enter a number between 1 and 7.")
                 except ValueError:
                     print("Invalid input. Please enter a number.")
 
@@ -301,6 +405,8 @@ class BookUI(LibraryItem):
                 self.update_book_quantity()
             elif option == 6:
                 self.display_sorted_books()
+            elif option == 7:
+                self.custom_search_ui()
             
             anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
             if anotherOption != 'yes':
