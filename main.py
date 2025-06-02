@@ -1,10 +1,50 @@
 from typing import List, Optional, Tuple
 from datetime import datetime
+from abc import ABC, abstractmethod  # Import for abstract base class
 
 class LibraryItem:
     """Parent class for all library-related objects"""
     def __init__(self, title: str):
         self.title = title
+
+class BookOperation(ABC):
+    """Abstract base class for book operations like lending and returning"""
+    
+    @abstractmethod
+    def can_perform(self, book: 'Book') -> bool:
+        """Check if operation can be performed on the book"""
+        pass
+        
+    @abstractmethod
+    def execute(self, book: 'Book') -> bool:
+        """Perform the operation on the book"""
+        pass
+
+class LendOperation(BookOperation):
+    """Concrete implementation for lending books"""
+    
+    def can_perform(self, book: 'Book') -> bool:
+        return book.availability and book.quantity > 0
+        
+    def execute(self, book: 'Book') -> bool:
+        if self.can_perform(book):
+            book.quantity -= 1
+            book.availability = book.quantity > 0
+            book._add_to_history("lend", "Book was lent out")
+            return True
+        return False
+
+class ReturnOperation(BookOperation):
+    """Concrete implementation for returning books"""
+    
+    def can_perform(self, book: 'Book') -> bool:
+        return True  # Books can always be returned
+        
+    def execute(self, book: 'Book') -> bool:
+        book.quantity += 1
+        book.availability = True
+        book._add_to_history("return", "Book was returned")
+        return True
 
 class Book(LibraryItem):
     """Handles individual book data"""
@@ -18,6 +58,9 @@ class Book(LibraryItem):
         self.quantity = quantity
         self.history: List[Tuple[datetime, str, str]] = []
         self._add_to_history("created", "Book added to library")
+        # Add operations
+        self.lend_operation = LendOperation()
+        self.return_operation = ReturnOperation()
 
     def _add_to_history(self, action: str, details: str) -> None:
         self.history.append((datetime.now(), action, details))
@@ -30,6 +73,14 @@ class Book(LibraryItem):
 
     def get_history(self) -> List[Tuple[datetime, str, str]]:
         return self.history
+
+    def lend(self) -> bool:
+        """Attempt to lend the book using LendOperation"""
+        return self.lend_operation.execute(self)
+
+    def return_book(self) -> bool:
+        """Return the book using ReturnOperation"""
+        return self.return_operation.execute(self)
 
     def __str__(self) -> str:
         return f"'{self.title}' by {self.author} ({self.year}) | Genre: {self.genre} | Rating: {self.rating}/5 | Available: {'Yes' if self.availability else 'No'} | Copies: {self.quantity}"
@@ -127,13 +178,17 @@ class BookAnalytics(LibraryItem):
         super().__init__("Library Analytics")
         self.books = books
 
-    def get_highest_rated_book(self) -> Optional[Book]:
+    def get_highest_rated_books(self) -> List[Book]:
+        """Returns all books that share the highest rating"""
         if not self.books:
-            print("\n------------------------------------------------------------")
-            print("No books available in the library.")
-            print("------------------------------------------------------------")
-            return None
-        return max(self.books, key=lambda x: x.rating)
+            return []
+            
+        # First find the highest rating
+        highest_rating = max(book.rating for book in self.books)
+        
+        # Then collect all books with that rating
+        highest_rated_books = [book for book in self.books if book.rating == highest_rating]
+        return highest_rated_books
 
     def bubble_sort_by_rating(self) -> List[Book]:
         """Sort books by rating using bubble sort (loop-based)"""
@@ -364,6 +419,34 @@ class BookUI(LibraryItem):
         else:
             self.print_separator("No books found matching your criteria.")
 
+    def lend_book_ui(self):
+        """UI for lending books"""
+        self.print_separator("Lend a Book")
+        title = input("Enter the title of the book to lend: ").strip()
+        book = self.inventory.find_book_by_title(title)
+        
+        if book:
+            if book.lend():
+                self.print_separator(f"Successfully lent out: {book.title}")
+            else:
+                self.print_separator(f"Cannot lend: {book.title} - No copies available")
+        else:
+            self.print_separator(f"Book not found: {title}")
+
+    def return_book_ui(self):
+        """UI for returning books"""
+        self.print_separator("Return a Book")
+        title = input("Enter the title of the book to return: ").strip()
+        book = self.inventory.find_book_by_title(title)
+        
+        if book:
+            if book.return_book():
+                self.print_separator(f"Successfully returned: {book.title}")
+            else:
+                self.print_separator(f"Error returning: {book.title}")
+        else:
+            self.print_separator(f"Book not found: {title}")
+
     def run_library_system(self):
         print("\nWelcome to Library Management System!")
 
@@ -371,18 +454,20 @@ class BookUI(LibraryItem):
             print("\nPlease select an option:")
             print("1. Add a new book to the library")
             print("2. Display all books in the library")
-            print("3. Show highest rated book")
+            print("3. Show highest rated books")
             print("4. View book history")
             print("5. Update book quantity")
             print("6. Sort and display books")
-            print("7. Custom binary search")  # Updated option
+            print("7. Custom binary search")
+            print("8. Lend a book")
+            print("9. Return a book")
 
             while True:
                 try:
-                    option = int(input("\nEnter 1 to 7: "))
-                    if 1 <= option <= 7:
+                    option = int(input("\nEnter 1 to 9: "))
+                    if 1 <= option <= 9:
                         break
-                    print("Please enter a number between 1 and 7.")
+                    print("Please enter a number between 1 and 9.")
                 except ValueError:
                     print("Invalid input. Please enter a number.")
 
@@ -396,9 +481,13 @@ class BookUI(LibraryItem):
             elif option == 2:
                 self.display_all_books()
             elif option == 3:
-                highest_rated = self.analytics.get_highest_rated_book()
-                if highest_rated:
-                    self.print_separator(f"Highest Rated Book: '{highest_rated.title}' with ({highest_rated.rating}/5.0)")
+                highest_rated_books = self.analytics.get_highest_rated_books()
+                if highest_rated_books:
+                    self.print_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
+                    for idx, book in enumerate(highest_rated_books, 1):
+                        print(f"{idx}. {book.title} by {book.author}")
+                else:
+                    self.print_separator("No books available in the library.")
             elif option == 4:
                 self.view_book_history()
             elif option == 5:
@@ -407,6 +496,10 @@ class BookUI(LibraryItem):
                 self.display_sorted_books()
             elif option == 7:
                 self.custom_search_ui()
+            elif option == 8:
+                self.lend_book_ui()
+            elif option == 9:
+                self.return_book_ui()
             
             anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
             if anotherOption != 'yes':
