@@ -172,65 +172,45 @@ class BookInventory(LibraryItem):
     def find_book_by_title(self, title: str) -> Optional[Book]:
         return self.recursive_search_by_title(title)
 
-class BookAnalytics(LibraryItem):
-    """Handles book statistics and analysis"""
-    def __init__(self, books: List[Book]):
-        super().__init__("Library Analytics")
-        self.books = books
+class SortStrategy(ABC):
+    """Abstract base class for different sorting strategies"""
+    
+    @abstractmethod
+    def sort(self, books: List['Book']) -> List['Book']:
+        """Sort the books according to the strategy"""
+        pass
 
-    def get_highest_rated_books(self) -> List[Book]:
-        """Returns all books that share the highest rating"""
-        if not self.books:
-            return []
-            
-        # First find the highest rating
-        highest_rating = max(book.rating for book in self.books)
-        
-        # Then collect all books with that rating
-        highest_rated_books = [book for book in self.books if book.rating == highest_rating]
-        return highest_rated_books
-
-    def bubble_sort_by_rating(self) -> List[Book]:
-        """Sort books by rating using bubble sort (loop-based)"""
-        # Create a copy to avoid modifying original list
-        books_to_sort = self.books.copy()
+class BubbleRatingSort(SortStrategy):
+    """Concrete bubble sort strategy for sorting by rating"""
+    
+    def sort(self, books: List['Book']) -> List['Book']:
+        books_to_sort = books.copy()
         n = len(books_to_sort)
-
-        # Bubble sort algorithm
+        
         for i in range(n):
-            # Last i elements are already in place
             for j in range(0, n - i - 1):
-                # Swap if the rating of current book is less than next book
                 if books_to_sort[j].rating < books_to_sort[j + 1].rating:
-                    # Swap books
                     books_to_sort[j], books_to_sort[j + 1] = books_to_sort[j + 1], books_to_sort[j]
-
+                    
         return books_to_sort
 
-    def merge_sort_by_title(self, books: List[Book]) -> List[Book]:
-        """Sort books by title using merge sort (recursive)"""
-        # Base case: if list has 1 or fewer books, it's already sorted
+class MergeTitleSort(SortStrategy):
+    """Concrete merge sort strategy for sorting by title"""
+    
+    def sort(self, books: List['Book']) -> List['Book']:
         if len(books) <= 1:
-            return books
-
-        # Split the list into two halves
+            return books.copy()
+            
         mid = len(books) // 2
-        left_half = books[:mid]
-        right_half = books[mid:]
-
-        # Recursively sort both halves
-        left_half = self.merge_sort_by_title(left_half)
-        right_half = self.merge_sort_by_title(right_half)
-
-        # Merge the sorted halves
-        return self._merge_sorted_lists(left_half, right_half)
-
-    def _merge_sorted_lists(self, left: List[Book], right: List[Book]) -> List[Book]:
-        """Helper method to merge two sorted lists of books by title"""
+        left_half = self.sort(books[:mid])
+        right_half = self.sort(books[mid:])
+        
+        return self._merge(left_half, right_half)
+    
+    def _merge(self, left: List['Book'], right: List['Book']) -> List['Book']:
         merged = []
         left_index = right_index = 0
-
-        # Compare and merge books based on title
+        
         while left_index < len(left) and right_index < len(right):
             if left[left_index].title.lower() <= right[right_index].title.lower():
                 merged.append(left[left_index])
@@ -238,18 +218,62 @@ class BookAnalytics(LibraryItem):
             else:
                 merged.append(right[right_index])
                 right_index += 1
-
-        # Add remaining books from left list
-        while left_index < len(left):
-            merged.append(left[left_index])
-            left_index += 1
-
-        # Add remaining books from right list
-        while right_index < len(right):
-            merged.append(right[right_index])
-            right_index += 1
-
+                
+        merged.extend(left[left_index:])
+        merged.extend(right[right_index:])
         return merged
+
+class MergeYearSort(SortStrategy):
+    """Concrete merge sort strategy for sorting by year"""
+    
+    def sort(self, books: List['Book']) -> List['Book']:
+        if len(books) <= 1:
+            return books.copy()
+            
+        mid = len(books) // 2
+        left_half = self.sort(books[:mid])
+        right_half = self.sort(books[mid:])
+        
+        return self._merge(left_half, right_half)
+    
+    def _merge(self, left: List['Book'], right: List['Book']) -> List['Book']:
+        merged = []
+        left_index = right_index = 0
+        
+        while left_index < len(left) and right_index < len(right):
+            if left[left_index].year >= right[right_index].year:  # Descending order
+                merged.append(left[left_index])
+                left_index += 1
+            else:
+                merged.append(right[right_index])
+                right_index += 1
+                
+        merged.extend(left[left_index:])
+        merged.extend(right[right_index:])
+        return merged
+
+class BookAnalytics(LibraryItem):
+    """Handles book statistics and analysis"""
+    def __init__(self, books: List[Book]):
+        super().__init__("Library Analytics")
+        self.books = books
+        # Initialize sorting strategies
+        self.rating_sort = BubbleRatingSort()
+        self.title_sort = MergeTitleSort()
+        self.year_sort = MergeYearSort()
+
+    def get_highest_rated_books(self) -> List[Book]:
+        """Returns all books that share the highest rating"""
+        if not self.books:
+            return []
+        
+        highest_rating = max(book.rating for book in self.books)
+        highest_rated_books = [book for book in self.books if book.rating == highest_rating]
+        return highest_rated_books
+
+    def sort_books(self, strategy: SortStrategy) -> List[Book]:
+        """Polymorphic method to sort books using different strategies"""
+        return strategy.sort(self.books)
 
 class BookUI(LibraryItem):
     """Handles user interface and input/output operations"""
@@ -360,24 +384,29 @@ class BookUI(LibraryItem):
             return
 
         print("\nSort books by:")
-        print("1. Rating (using Bubble Sort)")
-        print("2. Title (using Merge Sort)")
-
+        print("1. Rating (Bubble Sort)")
+        print("2. Title (Merge Sort)")
+        print("3. Year (Merge Sort)")
+        
         while True:
             try:
-                choice = int(input("\nEnter your choice (1-2): "))
-                if 1 <= choice <= 2:
+                choice = int(input("\nEnter your choice (1-3): "))
+                if 1 <= choice <= 3:
                     break
-                print("Please enter either 1 or 2.")
+                print("Please enter a number between 1 and 3.")
             except ValueError:
                 print("Invalid input. Please enter a number.")
 
+        # Use polymorphism to select sorting strategy
         if choice == 1:
-            sorted_books = self.analytics.bubble_sort_by_rating()
+            sorted_books = self.analytics.sort_books(self.analytics.rating_sort)
             self.print_separator("Books sorted by rating (highest to lowest):")
-        else:
-            sorted_books = self.analytics.merge_sort_by_title(self.inventory.books.copy())
+        elif choice == 2:
+            sorted_books = self.analytics.sort_books(self.analytics.title_sort)
             self.print_separator("Books sorted by title (A to Z):")
+        else:
+            sorted_books = self.analytics.sort_books(self.analytics.year_sort)
+            self.print_separator("Books sorted by year (newest to oldest):")
 
         for idx, book in enumerate(sorted_books, 1):
             print(f"{idx}. {str(book)}")
