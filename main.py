@@ -325,6 +325,65 @@ class BookAnalytics(LibraryItem):
         self.title_sort = MergeTitleSort()
         self.year_sort = MergeYearSort()
 
+    def compare_sorting_algorithms(self):
+        """Compare Bubble Sort and Merge Sort performance with bar graph"""
+        print("\nSorting Algorithm Performance Analysis")
+        print("-" * 50)
+        
+        # Test with different dataset sizes
+        sizes = [100, 500, 1000, 5000]
+        
+        for size in sizes:
+            print(f"\nTesting with {size} books:")
+            print("-" * 30)
+            
+            # Create test books
+            test_books = []
+            for i in range(size):
+                book = Book(
+                    f"Book {i}",
+                    f"Author {i}",
+                    "Fiction",
+                    2000 + (i % 24),
+                    round(1 + (i % 40) / 10, 1),  # Ratings 1.0-5.0
+                    True,
+                    1
+                )
+                test_books.append(book)
+            
+            # Test Bubble Sort
+            bubble_books = test_books.copy()
+            start_time = datetime.now()
+            self.rating_sort.sort(bubble_books)
+            end_time = datetime.now()
+            bubble_duration = end_time - start_time
+            
+            # Test Merge Sort
+            merge_books = test_books.copy()
+            start_time = datetime.now()
+            self.title_sort.sort(merge_books)
+            end_time = datetime.now()
+            merge_duration = end_time - start_time
+            
+            # Create bar graph visualization
+            max_width = 50  # Maximum width of the bar
+            bubble_time = bubble_duration.total_seconds()
+            merge_time = merge_duration.total_seconds()
+            
+            # Scale bars relative to the slower algorithm
+            max_time = max(bubble_time, merge_time)
+            bubble_bar = int((bubble_time / max_time) * max_width)
+            merge_bar = int((merge_time / max_time) * max_width)
+            
+            # Display results with bar graph
+            print(f"\nBubble Sort ({bubble_time:.6f}s)")
+            print("█" * bubble_bar)
+            
+            print(f"\nMerge Sort ({merge_time:.6f}s)")
+            print("█" * merge_bar)
+            
+            print(f"\nBubble Sort is {bubble_time/merge_time:.2f}x slower")
+
     def get_highest_rated_books(self) -> List[Book]:
         """Returns all books that share the highest rating"""
         if not self.books:
@@ -613,13 +672,14 @@ class BookUI(LibraryItem):
             print("8. Practical library search")
             print("9. Lend a book")
             print("10. Return a book")
+            print("11. Compare sorting algorithms")
 
             while True:
                 try:
-                    option = int(input("\nEnter 1 to 10: "))
-                    if 1 <= option <= 10:
+                    option = int(input("\nEnter 1 to 11: "))
+                    if 1 <= option <= 11:
                         break
-                    print("Please enter a number between 1 and 10.")
+                    print("Please enter a number between 1 and 11.")
                 except ValueError:
                     print("Invalid input. Please enter a number.")
 
@@ -654,6 +714,8 @@ class BookUI(LibraryItem):
                 self.lend_book_ui()
             elif option == 10:
                 self.return_book_ui()
+            elif option == 11:
+                self.analytics.compare_sorting_algorithms()
             
             anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
             if anotherOption != 'yes':
