@@ -111,19 +111,29 @@ class ReturnOperation(BookOperation):
 class Book(LibraryItem):
     """Handles individual book data"""
     def __init__(self, title: str, author: str, genre: str, year: int, rating: float, availability: bool, quantity: int):
-        super().__init__(title)
-        self.author = author
-        self.genre = genre
-        self.year = year
-        self.rating = rating
-        self.availability = availability
-        self.quantity = quantity
-        self.history: List[Tuple[datetime, str, str]] = []
-        self.inventory = None  # Reference to inventory for database updates
-        self._add_to_history("created", "Book added to library")
-        # Add operations
-        self.lend_operation = LendOperation()
-        self.return_operation = ReturnOperation()
+        try:
+            super().__init__(title)
+            current_year = datetime.now().year
+            if not isinstance(year, int) or year < 1500 or year > current_year:
+                raise ValueError(f"Year must be between 1500 and {current_year}")
+            if not isinstance(rating, (int, float)) or not 1 <= rating <= 5:
+                raise ValueError("Rating must be between 1 and 5")
+            if not isinstance(quantity, int) or quantity < 0:
+                raise ValueError("Quantity must be a non-negative number")
+            
+            self.author = author
+            self.genre = genre
+            self.year = year
+            self.rating = float(rating)
+            self.availability = availability
+            self.quantity = quantity
+            self.history: List[Tuple[datetime, str, str]] = []
+            self.inventory = None
+            self._add_to_history("created", "Book added to library")
+            self.lend_operation = LendOperation()
+            self.return_operation = ReturnOperation()
+        except Exception as e:
+            raise ValueError(f"Error creating book: {str(e)}")
 
     def _add_to_history(self, action: str, details: str) -> None:
         self.history.append((datetime.now(), action, details))
@@ -141,17 +151,25 @@ class Book(LibraryItem):
 
     def lend(self) -> bool:
         """Attempt to lend the book using LendOperation"""
-        success = self.lend_operation.execute(self)
-        if success and hasattr(self, 'inventory'):
-            self.inventory._save_database()  # Save after lending
-        return success
+        try:
+            success = self.lend_operation.execute(self)
+            if success and hasattr(self, 'inventory'):
+                self.inventory._save_database()
+            return success
+        except Exception as e:
+            print(f"Error lending book: {str(e)}")
+            return False
 
     def return_book(self) -> bool:
         """Return the book using ReturnOperation"""
-        success = self.return_operation.execute(self)
-        if success and hasattr(self, 'inventory'):
-            self.inventory._save_database()  # Save after returning
-        return success
+        try:
+            success = self.return_operation.execute(self)
+            if success and hasattr(self, 'inventory'):
+                self.inventory._save_database()
+            return success
+        except Exception as e:
+            print(f"Error returning book: {str(e)}")
+            return False
 
     def __str__(self) -> str:
         return f"'{self.title}' by {self.author} ({self.year}) | Genre: {self.genre} | Rating: {self.rating}/5 | Available: {'Yes' if self.availability else 'No'} | Copies: {self.quantity}"
@@ -170,19 +188,24 @@ class BookInventory(LibraryItem):
             if os.path.exists(self.database_file):
                 df = pd.read_csv(self.database_file)
                 for _, row in df.iterrows():
-                    book = Book(
-                        title=row['title'],
-                        author=row['author'],
-                        genre=row['genre'],
-                        year=row['year'],
-                        rating=row['rating'],
-                        availability=row['availability'],
-                        quantity=row['quantity']
-                    )
-                    self.books.append(book)
+                    try:
+                        book = Book(
+                            title=str(row['title']),
+                            author=str(row['author']),
+                            genre=str(row['genre']),
+                            year=int(row['year']),
+                            rating=float(row['rating']),
+                            availability=bool(row['availability']),
+                            quantity=int(row['quantity'])
+                        )
+                        book.inventory = self
+                        self.books.append(book)
+                    except Exception as e:
+                        print(f"Skipping invalid book in CSV: {str(e)}")
                 print(f"Loaded {len(self.books)} books from database.")
         except Exception as e:
-            print(f"Error loading database: {e}")
+            print(f"Could not load database: {str(e)}")
+            self.books = []
 
     def _save_database(self):
         """Save current books to CSV"""
@@ -201,7 +224,7 @@ class BookInventory(LibraryItem):
             df = pd.DataFrame(books_data)
             df.to_csv(self.database_file, index=False)
         except Exception as e:
-            print(f"Error saving to database: {e}")
+            print(f"Could not save to database: {str(e)}")
 
     def add_book(self, book: Book) -> None:
         book.inventory = self  # Set inventory reference for the book
@@ -291,71 +314,68 @@ class BookInventory(LibraryItem):
         return results
 
     def custom_binary_search(self, target_rating: float, target_year: int) -> List[Book]:
-        """Custom binary search that finds books based on rating AND year criteria.
-        Uses binary search with rating as primary key, then evaluates year condition.
-        Returns books where:
-        1. Book rating is equal to target_rating AND
-        2. Book year is greater than or equal to target_year
-        
-        This is a custom implementation that:
-        - Uses binary search pattern but with multiple criteria
-        - Implements logical AND in the evaluation
-        - Works on sorted and unsorted portions of data
-        - Handles duplicate ratings
-        """
-        # First sort books by rating (primary search key)
-        sorted_books = sorted(self.books, key=lambda x: x.rating)
-        results = []
-        
-        def binary_search_with_criteria(books: List[Book], left: int, right: int) -> None:
-            """Recursive binary search that also checks year criteria"""
-            if left > right:
-                return
+        """Custom binary search that finds books based on rating AND year criteria"""
+        try:
+            if not self.books:
+                print("Library is empty. No books to search.")
+                return []
+                
+            # First sort books by rating (primary search key)
+            sorted_books = sorted(self.books, key=lambda x: x.rating)
+            results = []
             
-            mid = (left + right) // 2
-            current_book = books[mid]
+            def binary_search_with_criteria(books: List[Book], left: int, right: int) -> None:
+                """Recursive binary search that also checks year criteria"""
+                if left > right:
+                    return
+                
+                mid = (left + right) // 2
+                current_book = books[mid]
+                
+                # Complex logical expression evaluation:
+                # 1. Check if rating matches (primary condition)
+                # 2. If rating matches, check year condition
+                if current_book.rating == target_rating:
+                    # When we find a rating match, we need to:
+                    # a) Check if it meets the year condition
+                    # b) Look for more matches in both directions
+                    
+                    # Check current book against all criteria
+                    if current_book.year >= target_year:
+                        results.append(current_book)
+                    
+                    # Look for more matches to the left
+                    # This handles cases where same rating appears multiple times
+                    temp_left = mid - 1
+                    while temp_left >= 0 and books[temp_left].rating == target_rating:
+                        if books[temp_left].year >= target_year:
+                            results.append(books[temp_left])
+                        temp_left -= 1
+                    
+                    # Look for more matches to the right
+                    temp_right = mid + 1
+                    while temp_right <= right and books[temp_right].rating == target_rating:
+                        if books[temp_right].year >= target_year:
+                            results.append(books[temp_right])
+                        temp_right += 1
+                    
+                    # Continue searching in both halves for any other matches
+                    binary_search_with_criteria(books, left, temp_left)
+                    binary_search_with_criteria(books, temp_right, right)
+                    
+                elif current_book.rating < target_rating:
+                    # Search in right half if current rating is less than target
+                    binary_search_with_criteria(books, mid + 1, right)
+                else:
+                    # Search in left half if current rating is greater than target
+                    binary_search_with_criteria(books, left, mid - 1)
             
-            # Complex logical expression evaluation:
-            # 1. Check if rating matches (primary condition)
-            # 2. If rating matches, check year condition
-            if current_book.rating == target_rating:
-                # When we find a rating match, we need to:
-                # a) Check if it meets the year condition
-                # b) Look for more matches in both directions
-                
-                # Check current book against all criteria
-                if current_book.year >= target_year:
-                    results.append(current_book)
-                
-                # Look for more matches to the left
-                # This handles cases where same rating appears multiple times
-                temp_left = mid - 1
-                while temp_left >= 0 and books[temp_left].rating == target_rating:
-                    if books[temp_left].year >= target_year:
-                        results.append(books[temp_left])
-                    temp_left -= 1
-                
-                # Look for more matches to the right
-                temp_right = mid + 1
-                while temp_right <= right and books[temp_right].rating == target_rating:
-                    if books[temp_right].year >= target_year:
-                        results.append(books[temp_right])
-                    temp_right += 1
-                
-                # Continue searching in both halves for any other matches
-                binary_search_with_criteria(books, left, temp_left)
-                binary_search_with_criteria(books, temp_right, right)
-                
-            elif current_book.rating < target_rating:
-                # Search in right half if current rating is less than target
-                binary_search_with_criteria(books, mid + 1, right)
-            else:
-                # Search in left half if current rating is greater than target
-                binary_search_with_criteria(books, left, mid - 1)
-        
-        # Start the recursive search
-        binary_search_with_criteria(sorted_books, 0, len(sorted_books) - 1)
-        return results
+            # Start the recursive search
+            binary_search_with_criteria(sorted_books, 0, len(sorted_books) - 1)
+            return results
+        except Exception as e:
+            print(f"Error during search: {str(e)}")
+            return []
 
     def recursive_search_by_title(self, title: str, index: int = 0) -> Optional[Book]:
         """Recursively search for a book by title"""
@@ -459,52 +479,52 @@ class BookAnalytics(LibraryItem):
         self.year_sort = MergeYearSort()
 
     def compare_sorting_algorithms(self):
-        """Compare Bubble Sort and Merge Sort performance with bar graph"""
-        print("\nSorting Algorithm Performance Analysis")
-        print("-" * 50)
-        
-        # Test with different dataset sizes
-        sizes = [100, 500, 1000, 5000]
-        
-        for size in sizes:
-            print(f"\nTesting with {size} books:")
-            print("-" * 30)
+        try:
+            if not self.books:
+                print("\nNo books available for comparison.")
+                return
+
+            print("\nSorting Algorithm Performance Analysis")
+            print("-" * 50)
             
-            # Create test books
-            test_books = generate_test_books(size)
+            # Test with different dataset sizes
+            sizes = [min(100, len(self.books)), min(500, len(self.books))]
+            sizes = list(set(sizes))  # Remove duplicates
             
-            # Test Bubble Sort
-            bubble_books = test_books.copy()
-            start_time = datetime.now()
-            self.rating_sort.sort(bubble_books)
-            end_time = datetime.now()
-            bubble_duration = end_time - start_time
-            
-            # Test Merge Sort
-            merge_books = test_books.copy()
-            start_time = datetime.now()
-            self.title_sort.sort(merge_books)
-            end_time = datetime.now()
-            merge_duration = end_time - start_time
-            
-            # Create bar graph visualization
-            max_width = 50  # Maximum width of the bar
-            bubble_time = bubble_duration.total_seconds()
-            merge_time = merge_duration.total_seconds()
-            
-            # Scale bars relative to the slower algorithm
-            max_time = max(bubble_time, merge_time)
-            bubble_bar = int((bubble_time / max_time) * max_width)
-            merge_bar = int((merge_time / max_time) * max_width)
-            
-            # Display results with bar graph
-            print(f"\nBubble Sort ({bubble_time:.6f}s)")
-            print("█" * bubble_bar)
-            
-            print(f"\nMerge Sort ({merge_time:.6f}s)")
-            print("█" * merge_bar)
-            
-            print(f"\nBubble Sort is {bubble_time/merge_time:.2f}x slower")
+            for size in sizes:
+                if size > len(self.books):
+                    continue
+                    
+                print(f"\nTesting with {size} books:")
+                print("-" * 30)
+                
+                # Create test subset
+                test_books = self.books[:size]
+                
+                # Test Bubble Sort
+                try:
+                    start_time = datetime.now()
+                    self.rating_sort.sort(test_books)
+                    bubble_duration = (datetime.now() - start_time).total_seconds()
+                except Exception as e:
+                    print(f"Bubble sort failed: {str(e)}")
+                    continue
+                
+                # Test Merge Sort
+                try:
+                    start_time = datetime.now()
+                    self.title_sort.sort(test_books)
+                    merge_duration = (datetime.now() - start_time).total_seconds()
+                except Exception as e:
+                    print(f"Merge sort failed: {str(e)}")
+                    continue
+                
+                print(f"\nBubble Sort: {bubble_duration:.6f}s")
+                print(f"Merge Sort: {merge_duration:.6f}s")
+                if merge_duration > 0:
+                    print(f"\nBubble Sort is {bubble_duration/merge_duration:.2f}x slower")
+        except Exception as e:
+            print(f"Error comparing algorithms: {str(e)}")
 
     def get_highest_rated_books(self) -> List[Book]:
         """Returns all books that share the highest rating"""
@@ -517,7 +537,14 @@ class BookAnalytics(LibraryItem):
 
     def sort_books(self, strategy: SortStrategy) -> List[Book]:
         """Polymorphic method to sort books using different strategies"""
-        return strategy.sort(self.books)
+        try:
+            if not self.books:
+                print("No books to sort.")
+                return []
+            return strategy.sort(self.books)
+        except Exception as e:
+            print(f"Error sorting books: {str(e)}")
+            return self.books  # Return unsorted list in case of error
 
 class BookUI(LibraryItem):
     """Handles user interface and input/output operations"""
@@ -530,53 +557,54 @@ class BookUI(LibraryItem):
         print_formatted_separator(message)
 
     def add_book_ui(self):
-        self.print_formatted_separator("Enter the details of the book that you want to add.")
-        
-        title = input("Title: ").strip()
-        author = input("Author's name: ").strip()
-        genre = input("Genre: ").strip()
+        try:
+            self.print_formatted_separator("Enter the details of the book that you want to add.")
+            
+            title = input("Title: ").strip()
+            author = input("Author's name: ").strip()
+            genre = input("Genre: ").strip()
 
-        while True:
-            try:
-                year = int(input("Year of publication: ").strip())
-                if year <= 2025:
-                    break
-                print("Enter valid year.")
-            except ValueError:
-                print("Invalid year. Please enter a valid integer.")
-
-        while True:
-            try:
-                rating = float(input("Rating (between 1 to 5, e.g. 4.6): ").strip())
-                if 1.0 <= rating <= 5.0:
-                    break
-                print("Rating must be between 1 and 5.")
-            except ValueError:
-                print("Invalid rating. Please enter a decimal number like 4.6.")
-
-        while True:
-            availability_input = input("Is any physical copy available in the library? (yes/no): ").strip().lower()
-            if availability_input in ['yes', 'no']:
-                break
-            print("Please type 'yes' or 'no'.")
-
-        quantity = 0
-        if availability_input == 'yes':
-            availability = True
+            current_year = datetime.now().year
             while True:
                 try:
-                    quantity = int(input("How many copies are available: ").strip())
-                    if quantity >= 0:
+                    year = int(input(f"Year of publication (1500-{current_year}): ").strip())
+                    if 1500 <= year <= current_year:
                         break
-                    print("Quantity must be 0 or positive.")
+                    print(f"Please enter a year between 1500 and {current_year}.")
                 except ValueError:
-                    print("Invalid quantity. Please enter a whole number.")
-        else:
-            availability = False
+                    print("Please enter a valid number for year.")
 
-        book = Book(title, author, genre, year, rating, availability, quantity)
-        self.inventory.add_book(book)
-        self.print_formatted_separator("Book successfully added!")
+            while True:
+                try:
+                    rating = float(input("Rating (between 1 to 5, e.g. 4.6): ").strip())
+                    if 1 <= rating <= 5:
+                        break
+                    print("Rating must be between 1 and 5.")
+                except ValueError:
+                    print("Please enter a valid number for rating.")
+
+            while True:
+                availability_input = input("Is any physical copy available? (yes/no): ").strip().lower()
+                if availability_input in ['yes', 'no']:
+                    break
+                print("Please enter 'yes' or 'no'.")
+
+            quantity = 0
+            if availability_input == 'yes':
+                while True:
+                    try:
+                        quantity = int(input("How many copies are available: ").strip())
+                        if quantity >= 0:
+                            break
+                        print("Quantity cannot be negative.")
+                    except ValueError:
+                        print("Please enter a valid number for quantity.")
+
+            book = Book(title, author, genre, year, rating, availability_input == 'yes', quantity)
+            self.inventory.add_book(book)
+            self.print_formatted_separator("Book successfully added!")
+        except Exception as e:
+            print(f"Could not add book: {str(e)}")
 
     def display_all_books(self):
         if not self.inventory.books:
@@ -590,15 +618,26 @@ class BookUI(LibraryItem):
         print("------------------------------------------------------------")
 
     def view_book_history(self):
-        title = input("\nEnter the title of the book to view history: ").strip()
-        book = self.inventory.find_book_by_title(title)
-        
-        if book:
-            self.print_formatted_separator(f"History for '{book.title}':")
-            for timestamp, action, details in book.get_history():
-                print(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {action}: {details}")
-        else:
-            self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
+        try:
+            title = input("\nEnter the title of the book to view history: ").strip()
+            if not title:
+                print("Title cannot be empty.")
+                return
+                
+            book = self.inventory.find_book_by_title(title)
+            if book:
+                history = book.get_history()
+                if not history:
+                    print("No history available for this book.")
+                    return
+                    
+                self.print_formatted_separator(f"History for '{book.title}':")
+                for timestamp, action, details in history:
+                    print(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {action}: {details}")
+            else:
+                self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
+        except Exception as e:
+            print(f"Error viewing history: {str(e)}")
 
     def update_book_quantity(self):
         title = input("\nEnter the title of the book to update quantity: ").strip()
@@ -620,38 +659,41 @@ class BookUI(LibraryItem):
             self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
 
     def display_sorted_books(self):
-        if not self.inventory.books:
-            self.print_formatted_separator("No books in the library yet.")
-            return
+        try:
+            if not self.inventory.books:
+                self.print_formatted_separator("No books in the library yet.")
+                return
 
-        print("\nSort books by:")
-        print("1. Rating (Bubble Sort)")
-        print("2. Title (Merge Sort)")
-        print("3. Year (Merge Sort)")
-        
-        while True:
-            try:
-                choice = int(input("\nEnter your choice (1-3): "))
-                if 1 <= choice <= 3:
-                    break
-                print("Please enter a number between 1 and 3.")
-            except ValueError:
-                print("Invalid input. Please enter a number.")
+            print("\nSort books by:")
+            print("1. Rating (Bubble Sort)")
+            print("2. Title (Merge Sort)")
+            print("3. Year (Merge Sort)")
+            
+            while True:
+                try:
+                    choice = int(input("\nEnter your choice (1-3): "))
+                    if 1 <= choice <= 3:
+                        break
+                    print("Please enter a number between 1 and 3.")
+                except ValueError:
+                    print("Please enter a valid number.")
 
-        # Use polymorphism to select sorting strategy
-        if choice == 1:
-            sorted_books = self.analytics.sort_books(self.analytics.rating_sort)
-            self.print_formatted_separator("Books sorted by rating (highest to lowest):")
-        elif choice == 2:
-            sorted_books = self.analytics.sort_books(self.analytics.title_sort)
-            self.print_formatted_separator("Books sorted by title (A to Z):")
-        else:
-            sorted_books = self.analytics.sort_books(self.analytics.year_sort)
-            self.print_formatted_separator("Books sorted by year (newest to oldest):")
+            if choice == 1:
+                sorted_books = self.analytics.sort_books(self.analytics.rating_sort)
+                self.print_formatted_separator("Books sorted by rating (highest to lowest):")
+            elif choice == 2:
+                sorted_books = self.analytics.sort_books(self.analytics.title_sort)
+                self.print_formatted_separator("Books sorted by title (A to Z):")
+            else:
+                sorted_books = self.analytics.sort_books(self.analytics.year_sort)
+                self.print_formatted_separator("Books sorted by year (newest to oldest):")
 
-        for idx, book in enumerate(sorted_books, 1):
-            print(f"{idx}. {str(book)}")
-        print("------------------------------------------------------------")
+            if sorted_books:
+                for idx, book in enumerate(sorted_books, 1):
+                    print(f"{idx}. {str(book)}")
+            print("------------------------------------------------------------")
+        except Exception as e:
+            print(f"Error sorting books: {str(e)}")
 
     def custom_search_ui(self):
         """UI for the custom binary search feature"""
@@ -690,63 +732,50 @@ class BookUI(LibraryItem):
             self.print_formatted_separator("No books found matching your criteria.")
 
     def practical_search_ui(self):
-        """UI for the practical truth table-based search feature"""
-        self.print_formatted_separator("Practical Library Search")
-        print("This search helps find books based on practical library needs:")
-        print("1. Genre matching")
-        print("2. Student-friendly materials (Rating ≥ 4.0 AND Year ≥ 2000)")
-        print("3. Access type (Borrowing or Reference)")
-        
-        # Get genre
-        genre = input("\nEnter desired genre (e.g., Fiction, Non-fiction, Science, etc.): ").strip()
-        
-        # Get student-friendly requirement
-        while True:
-            student_input = input("Looking for student-friendly materials? (yes/no): ").strip().lower()
-            if student_input in ['yes', 'no']:
-                break
-            print("Please type 'yes' or 'no'.")
-        for_students = student_input == 'yes'
+        try:
+            self.print_formatted_separator("Practical Library Search")
+            
+            if not self.inventory.books:
+                print("Library is empty. No books to search.")
+                return
+                
+            genre = input("\nEnter desired genre: ").strip()
+            if not genre:
+                print("Genre cannot be empty.")
+                return
 
-        # Get borrowing type requirement
-        print("\nSelect access type needed:")
-        print("1. Borrowing (can check out)")
-        print("2. Reference (in-library use only)")
-        print("3. Any (either borrowing or reference)")
-        
-        while True:
-            try:
-                access_choice = int(input("Enter choice (1-3): "))
-                if 1 <= access_choice <= 3:
+            while True:
+                student_input = input("Looking for student-friendly materials? (yes/no): ").strip().lower()
+                if student_input in ['yes', 'no']:
                     break
-                print("Please enter a number between 1 and 3.")
-            except ValueError:
-                print("Invalid input. Please enter a number.")
+                print("Please enter 'yes' or 'no'.")
 
-        borrowing_type = {1: 'borrow', 2: 'reference', 3: 'any'}[access_choice]
+            while True:
+                try:
+                    print("\nSelect access type needed:")
+                    print("1. Borrowing (can check out)")
+                    print("2. Reference (in-library use only)")
+                    print("3. Any (either borrowing or reference)")
+                    
+                    access_choice = int(input("Enter choice (1-3): "))
+                    if 1 <= access_choice <= 3:
+                        break
+                    print("Please enter a number between 1 and 3.")
+                except ValueError:
+                    print("Please enter a valid number.")
 
-        # Perform search
-        results = self.inventory.practical_truth_table_search(genre, for_students, borrowing_type)
+            borrowing_type = {1: 'borrow', 2: 'reference', 3: 'any'}[access_choice]
+            results = self.inventory.practical_truth_table_search(genre, student_input == 'yes', borrowing_type)
 
-        # Display results with practical information
-        if results:
-            self.print_formatted_separator(f"Found {len(results)} book(s) matching your needs:")
-            print(f"\nSearch Criteria:")
-            print(f"- Genre: {genre}")
-            print(f"- Student-friendly: {'Yes' if for_students else 'Not required'}")
-            print(f"- Access type: {borrowing_type.capitalize()}")
-            print("\nMatching Books:")
-            for idx, (book, is_borrowable, is_reference) in enumerate(results, 1):
-                print(f"\n{idx}. {str(book)}")
-                # Show practical status
-                print(f"   Student-friendly: {'Yes' if book.rating >= 4.0 and book.year >= 2000 else 'No'}")
-                print(f"   Access type: {'Can be borrowed' if is_borrowable else 'Reference only'}")
-        else:
-            self.print_formatted_separator("No books found matching your criteria.")
-            print("\nSuggestions:")
-            print("- Try a different genre")
-            print("- If searching for student materials, consider allowing older books")
-            print("- Try changing the access type to 'Any' for more results")
+            if results:
+                self.print_formatted_separator(f"Found {len(results)} matching book(s):")
+                for idx, (book, is_borrowable, is_reference) in enumerate(results, 1):
+                    print(f"\n{idx}. {str(book)}")
+                    print(f"   Access type: {'Can be borrowed' if is_borrowable else 'Reference only'}")
+            else:
+                self.print_formatted_separator("No books found matching your criteria.")
+        except Exception as e:
+            print(f"Error during search: {str(e)}")
 
     def lend_book_ui(self):
         """UI for lending books"""
@@ -780,66 +809,66 @@ class BookUI(LibraryItem):
         print("\nWelcome to Library Management System!")
 
         while True:
-            print("\nPlease select an option:")
-            print("1. Add a new book to the library")
-            print("2. Display all books in the library")
-            print("3. Show highest rated books")
-            print("4. View book history")
-            print("5. Update book quantity")
-            print("6. Sort and display books")
-            print("7. Custom binary search")
-            print("8. Practical library search")
-            print("9. Lend a book")
-            print("10. Return a book")
-            print("11. Compare sorting algorithms")
+            try:
+                print("\nPlease select an option:")
+                print("1. Add a new book to the library")
+                print("2. Display all books in the library")
+                print("3. Show highest rated books")
+                print("4. View book history")
+                print("5. Update book quantity")
+                print("6. Sort and display books")
+                print("7. Custom binary search")
+                print("8. Practical library search")
+                print("9. Lend a book")
+                print("10. Return a book")
+                print("11. Compare sorting algorithms")
 
-            while True:
-                try:
-                    option = int(input("\nEnter 1 to 11: "))
-                    if 1 <= option <= 11:
-                        break
-                    print("Please enter a number between 1 and 11.")
-                except ValueError:
-                    print("Invalid input. Please enter a number.")
-
-            if option == 1:
                 while True:
+                    try:
+                        option = int(input("\nEnter 1 to 11: "))
+                        if 1 <= option <= 11:
+                            break
+                        print("Please enter a number between 1 and 11.")
+                    except ValueError:
+                        print("Please enter a valid number.")
+
+                if option == 1:
                     self.add_book_ui()
-                    again = input("\nWould you like to add another book? Type 'yes' to continue or any other key to exit: ").strip().lower()
-                    if again != 'yes':
-                        print("\nThank you!")
-                        break
-            elif option == 2:
-                self.display_all_books()
-            elif option == 3:
-                highest_rated_books = self.analytics.get_highest_rated_books()
-                if highest_rated_books:
-                    self.print_formatted_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
-                    for idx, book in enumerate(highest_rated_books, 1):
-                        print(f"{idx}. {book.title} by {book.author}")
-                else:
-                    self.print_formatted_separator("No books available in the library.")
-            elif option == 4:
-                self.view_book_history()
-            elif option == 5:
-                self.update_book_quantity()
-            elif option == 6:
-                self.display_sorted_books()
-            elif option == 7:
-                self.custom_search_ui()
-            elif option == 8:
-                self.practical_search_ui()
-            elif option == 9:
-                self.lend_book_ui()
-            elif option == 10:
-                self.return_book_ui()
-            elif option == 11:
-                self.analytics.compare_sorting_algorithms()
-            
-            anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
-            if anotherOption != 'yes':
-                print("\nThank you for using the Library Management System!")
-                break
+                elif option == 2:
+                    self.display_all_books()
+                elif option == 3:
+                    highest_rated_books = self.analytics.get_highest_rated_books()
+                    if highest_rated_books:
+                        self.print_formatted_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
+                        for idx, book in enumerate(highest_rated_books, 1):
+                            print(f"{idx}. {book.title} by {book.author}")
+                    else:
+                        self.print_formatted_separator("No books available in the library.")
+                elif option == 4:
+                    self.view_book_history()
+                elif option == 5:
+                    self.update_book_quantity()
+                elif option == 6:
+                    self.display_sorted_books()
+                elif option == 7:
+                    self.custom_search_ui()
+                elif option == 8:
+                    self.practical_search_ui()
+                elif option == 9:
+                    self.lend_book_ui()
+                elif option == 10:
+                    self.return_book_ui()
+                elif option == 11:
+                    self.analytics.compare_sorting_algorithms()
+
+                anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
+                if anotherOption != 'yes':
+                    print("\nThank you for using the Library Management System!")
+                    break
+
+            except Exception as e:
+                print(f"\nAn error occurred: {str(e)}")
+                print("Please try again.")
 
 # Create instances and run the system
 inventory = BookInventory()
