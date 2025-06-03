@@ -2,6 +2,66 @@ from typing import List, Optional, Tuple
 from datetime import datetime
 from abc import ABC, abstractmethod  # Import for abstract base class
 
+def print_formatted_separator(message: str = "") -> None:
+    """Utility function for consistent formatting of section separators.
+    
+    Args:
+        message: Optional message to display in the separator
+    """
+    print("\n------------------------------------------------------------")
+    if message:
+        print(message)
+    print("------------------------------------------------------------")
+
+def generate_test_books(size: int) -> List['Book']:
+    """Generate a list of test books for performance testing.
+    
+    Args:
+        size: Number of test books to generate
+        
+    Returns:
+        List of Book objects with test data
+    """
+    test_books = []
+    for i in range(size):
+        book = Book(
+            f"Book {i}",
+            f"Author {i}",
+            "Fiction",
+            2000 + (i % 24),
+            round(1 + (i % 40) / 10, 1),
+            True,
+            1
+        )
+        test_books.append(book)
+    return test_books
+
+def create_bar_graph(value1: float, value2: float, label1: str = "Value 1", label2: str = "Value 2", max_width: int = 50) -> str:
+    """Create a simple bar graph comparison of two values.
+    
+    Args:
+        value1: First value to compare
+        value2: Second value to compare
+        label1: Label for first value
+        label2: Label for second value
+        max_width: Maximum width of the bar graph
+        
+    Returns:
+        Formatted string containing the bar graph
+    """
+    # Calculate the bars
+    max_value = max(value1, value2)
+    bar1 = int((value1 / max_value) * max_width)
+    bar2 = int((value2 / max_value) * max_width)
+    
+    # Create the visualization
+    graph = f"\n{label1} ({value1:.6f}s)\n"
+    graph += "█" * bar1
+    graph += f"\n\n{label2} ({value2:.6f}s)\n"
+    graph += "█" * bar2
+    
+    return graph
+
 class LibraryItem:
     """Parent class for all library-related objects"""
     def __init__(self, title: str):
@@ -338,18 +398,7 @@ class BookAnalytics(LibraryItem):
             print("-" * 30)
             
             # Create test books
-            test_books = []
-            for i in range(size):
-                book = Book(
-                    f"Book {i}",
-                    f"Author {i}",
-                    "Fiction",
-                    2000 + (i % 24),
-                    round(1 + (i % 40) / 10, 1),  # Ratings 1.0-5.0
-                    True,
-                    1
-                )
-                test_books.append(book)
+            test_books = generate_test_books(size)
             
             # Test Bubble Sort
             bubble_books = test_books.copy()
@@ -404,14 +453,11 @@ class BookUI(LibraryItem):
         self.inventory = inventory
         self.analytics = analytics
 
-    def print_separator(self, message: str = ""):
-        print("\n------------------------------------------------------------")
-        if message:
-            print(message)
-            print("------------------------------------------------------------")
+    def print_formatted_separator(self, message: str = ""):
+        print_formatted_separator(message)
 
     def add_book_ui(self):
-        self.print_separator("Enter the details of the book that you want to add.")
+        self.print_formatted_separator("Enter the details of the book that you want to add.")
         
         title = input("Title: ").strip()
         author = input("Author's name: ").strip()
@@ -457,14 +503,14 @@ class BookUI(LibraryItem):
 
         book = Book(title, author, genre, year, rating, availability, quantity)
         self.inventory.add_book(book)
-        self.print_separator("Book successfully added!")
+        self.print_formatted_separator("Book successfully added!")
 
     def display_all_books(self):
         if not self.inventory.books:
-            self.print_separator("No books in the library yet.")
+            self.print_formatted_separator("No books in the library yet.")
             return
 
-        self.print_separator()
+        self.print_formatted_separator()
         print("All Books in the Library:")
         for idx, book in enumerate(self.inventory.books, 1):
             print(f"{idx}. {str(book)}")
@@ -475,11 +521,11 @@ class BookUI(LibraryItem):
         book = self.inventory.find_book_by_title(title)
         
         if book:
-            self.print_separator(f"History for '{book.title}':")
+            self.print_formatted_separator(f"History for '{book.title}':")
             for timestamp, action, details in book.get_history():
                 print(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} - {action}: {details}")
         else:
-            self.print_separator(f"Book titled '{title}' not found in the library.")
+            self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
 
     def update_book_quantity(self):
         title = input("\nEnter the title of the book to update quantity: ").strip()
@@ -492,17 +538,17 @@ class BookUI(LibraryItem):
                     new_quantity = int(input("Enter new quantity: ").strip())
                     if new_quantity >= 0:
                         book.update_quantity(new_quantity)
-                        self.print_separator("Quantity updated successfully!")
+                        self.print_formatted_separator("Quantity updated successfully!")
                         break
                     print("Quantity must be 0 or positive.")
                 except ValueError:
                     print("Invalid quantity. Please enter a whole number.")
         else:
-            self.print_separator(f"Book titled '{title}' not found in the library.")
+            self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
 
     def display_sorted_books(self):
         if not self.inventory.books:
-            self.print_separator("No books in the library yet.")
+            self.print_formatted_separator("No books in the library yet.")
             return
 
         print("\nSort books by:")
@@ -522,13 +568,13 @@ class BookUI(LibraryItem):
         # Use polymorphism to select sorting strategy
         if choice == 1:
             sorted_books = self.analytics.sort_books(self.analytics.rating_sort)
-            self.print_separator("Books sorted by rating (highest to lowest):")
+            self.print_formatted_separator("Books sorted by rating (highest to lowest):")
         elif choice == 2:
             sorted_books = self.analytics.sort_books(self.analytics.title_sort)
-            self.print_separator("Books sorted by title (A to Z):")
+            self.print_formatted_separator("Books sorted by title (A to Z):")
         else:
             sorted_books = self.analytics.sort_books(self.analytics.year_sort)
-            self.print_separator("Books sorted by year (newest to oldest):")
+            self.print_formatted_separator("Books sorted by year (newest to oldest):")
 
         for idx, book in enumerate(sorted_books, 1):
             print(f"{idx}. {str(book)}")
@@ -536,7 +582,7 @@ class BookUI(LibraryItem):
 
     def custom_search_ui(self):
         """UI for the custom binary search feature"""
-        self.print_separator("Custom Binary Search")
+        self.print_formatted_separator("Custom Binary Search")
         
         # Get rating to search for
         while True:
@@ -563,16 +609,16 @@ class BookUI(LibraryItem):
 
         # Display results
         if results:
-            self.print_separator(f"Found {len(results)} book(s) matching criteria:")
+            self.print_formatted_separator(f"Found {len(results)} book(s) matching criteria:")
             print(f"Rating: {target_rating}, Year >= {target_year}")
             for idx, book in enumerate(results, 1):
                 print(f"{idx}. {str(book)}")
         else:
-            self.print_separator("No books found matching your criteria.")
+            self.print_formatted_separator("No books found matching your criteria.")
 
     def practical_search_ui(self):
         """UI for the practical truth table-based search feature"""
-        self.print_separator("Practical Library Search")
+        self.print_formatted_separator("Practical Library Search")
         print("This search helps find books based on practical library needs:")
         print("1. Genre matching")
         print("2. Student-friendly materials (Rating ≥ 4.0 AND Year ≥ 2000)")
@@ -611,7 +657,7 @@ class BookUI(LibraryItem):
 
         # Display results with practical information
         if results:
-            self.print_separator(f"Found {len(results)} book(s) matching your needs:")
+            self.print_formatted_separator(f"Found {len(results)} book(s) matching your needs:")
             print(f"\nSearch Criteria:")
             print(f"- Genre: {genre}")
             print(f"- Student-friendly: {'Yes' if for_students else 'Not required'}")
@@ -623,7 +669,7 @@ class BookUI(LibraryItem):
                 print(f"   Student-friendly: {'Yes' if book.rating >= 4.0 and book.year >= 2000 else 'No'}")
                 print(f"   Access type: {'Can be borrowed' if is_borrowable else 'Reference only'}")
         else:
-            self.print_separator("No books found matching your criteria.")
+            self.print_formatted_separator("No books found matching your criteria.")
             print("\nSuggestions:")
             print("- Try a different genre")
             print("- If searching for student materials, consider allowing older books")
@@ -631,31 +677,31 @@ class BookUI(LibraryItem):
 
     def lend_book_ui(self):
         """UI for lending books"""
-        self.print_separator("Lend a Book")
+        self.print_formatted_separator("Lend a Book")
         title = input("Enter the title of the book to lend: ").strip()
         book = self.inventory.find_book_by_title(title)
         
         if book:
             if book.lend():
-                self.print_separator(f"Successfully lent out: {book.title}")
+                self.print_formatted_separator(f"Successfully lent out: {book.title}")
             else:
-                self.print_separator(f"Cannot lend: {book.title} - No copies available")
+                self.print_formatted_separator(f"Cannot lend: {book.title} - No copies available")
         else:
-            self.print_separator(f"Book not found: {title}")
+            self.print_formatted_separator(f"Book not found: {title}")
 
     def return_book_ui(self):
         """UI for returning books"""
-        self.print_separator("Return a Book")
+        self.print_formatted_separator("Return a Book")
         title = input("Enter the title of the book to return: ").strip()
         book = self.inventory.find_book_by_title(title)
         
         if book:
             if book.return_book():
-                self.print_separator(f"Successfully returned: {book.title}")
+                self.print_formatted_separator(f"Successfully returned: {book.title}")
             else:
-                self.print_separator(f"Error returning: {book.title}")
+                self.print_formatted_separator(f"Error returning: {book.title}")
         else:
-            self.print_separator(f"Book not found: {title}")
+            self.print_formatted_separator(f"Book not found: {title}")
 
     def run_library_system(self):
         print("\nWelcome to Library Management System!")
@@ -695,11 +741,11 @@ class BookUI(LibraryItem):
             elif option == 3:
                 highest_rated_books = self.analytics.get_highest_rated_books()
                 if highest_rated_books:
-                    self.print_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
+                    self.print_formatted_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
                     for idx, book in enumerate(highest_rated_books, 1):
                         print(f"{idx}. {book.title} by {book.author}")
                 else:
-                    self.print_separator("No books available in the library.")
+                    self.print_formatted_separator("No books available in the library.")
             elif option == 4:
                 self.view_book_history()
             elif option == 5:
