@@ -1,6 +1,8 @@
 from typing import List, Optional, Tuple
 from datetime import datetime
 from abc import ABC, abstractmethod  # Import for abstract base class
+import pandas as pd
+import os
 
 def print_formatted_separator(message: str = "") -> None:
     """Utility function for consistent formatting of section separators.
@@ -117,6 +119,7 @@ class Book(LibraryItem):
         self.availability = availability
         self.quantity = quantity
         self.history: List[Tuple[datetime, str, str]] = []
+        self.inventory = None  # Reference to inventory for database updates
         self._add_to_history("created", "Book added to library")
         # Add operations
         self.lend_operation = LendOperation()
@@ -130,17 +133,25 @@ class Book(LibraryItem):
         self.quantity = new_quantity
         self.availability = new_quantity > 0
         self._add_to_history("quantity_update", f"Quantity changed from {old_quantity} to {new_quantity}")
+        if hasattr(self, 'inventory'):
+            self.inventory._save_database()  # Save after quantity update
 
     def get_history(self) -> List[Tuple[datetime, str, str]]:
         return self.history
 
     def lend(self) -> bool:
         """Attempt to lend the book using LendOperation"""
-        return self.lend_operation.execute(self)
+        success = self.lend_operation.execute(self)
+        if success and hasattr(self, 'inventory'):
+            self.inventory._save_database()  # Save after lending
+        return success
 
     def return_book(self) -> bool:
         """Return the book using ReturnOperation"""
-        return self.return_operation.execute(self)
+        success = self.return_operation.execute(self)
+        if success and hasattr(self, 'inventory'):
+            self.inventory._save_database()  # Save after returning
+        return success
 
     def __str__(self) -> str:
         return f"'{self.title}' by {self.author} ({self.year}) | Genre: {self.genre} | Rating: {self.rating}/5 | Available: {'Yes' if self.availability else 'No'} | Copies: {self.quantity}"
@@ -150,9 +161,71 @@ class BookInventory(LibraryItem):
     def __init__(self):
         super().__init__("Library Inventory")
         self.books: List[Book] = []
+        self.database_file = "library_database.csv"
+        self._load_database()  # Load books when inventory is created
+
+    def _load_database(self):
+        """Load books from CSV if it exists"""
+        try:
+            if os.path.exists(self.database_file):
+                df = pd.read_csv(self.database_file)
+                for _, row in df.iterrows():
+                    book = Book(
+                        title=row['title'],
+                        author=row['author'],
+                        genre=row['genre'],
+                        year=row['year'],
+                        rating=row['rating'],
+                        availability=row['availability'],
+                        quantity=row['quantity']
+                    )
+                    self.books.append(book)
+                print(f"Loaded {len(self.books)} books from database.")
+        except Exception as e:
+            print(f"Error loading database: {e}")
+
+    def _save_database(self):
+        """Save current books to CSV"""
+        try:
+            books_data = []
+            for book in self.books:
+                books_data.append({
+                    'title': book.title,
+                    'author': book.author,
+                    'genre': book.genre,
+                    'year': book.year,
+                    'rating': book.rating,
+                    'availability': book.availability,
+                    'quantity': book.quantity
+                })
+            df = pd.DataFrame(books_data)
+            df.to_csv(self.database_file, index=False)
+        except Exception as e:
+            print(f"Error saving to database: {e}")
 
     def add_book(self, book: Book) -> None:
+        book.inventory = self  # Set inventory reference for the book
         self.books.append(book)
+        self._save_database()  # Save after adding a book
+
+    def remove_book(self, book: Book) -> bool:
+        if book in self.books:
+            self.books.remove(book)
+            self._save_database()  # Save after removing a book
+            return True
+        return False
+
+    def update_book(self, book: Book) -> None:
+        """Update book and save changes"""
+        if book in self.books:
+            self._save_database()  # Save after any book update
+
+    def update_book_quantity(self, book_id: int, new_quantity: int) -> bool:
+        if 0 <= book_id < len(self.books):
+            self.books[book_id].update_quantity(new_quantity)
+            self._save_database()  # Save after updating quantity
+            return True
+        return False
 
     def practical_truth_table_search(self, genre: str, for_students: bool, borrowing_type: str) -> List[Tuple[Book, bool, bool]]:
         """
