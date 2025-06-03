@@ -5,15 +5,28 @@ import pandas as pd
 import os
 
 def print_formatted_separator(message: str = "") -> None:
-    """Utility function for consistent formatting of section separators.
+    """Display a formatted separator with optional message.
     
     Args:
         message: Optional message to display in the separator
     """
-    print("\n------------------------------------------------------------")
-    if message:
-        print(message)
-    print("------------------------------------------------------------")
+    width = 50  # Total width of the separator
+    
+    try:
+        # Top border with corners
+        print("\n+" + "=" * (width-2) + "+")
+        if message:
+            # Center the message with side borders
+            print("|" + message.center(width-2) + "|")
+            print("+" + "-" * (width-2) + "+")
+        # Bottom border with corners
+        print("+" + "=" * (width-2) + "+\n")
+    except Exception as e:
+        # Simple fallback
+        print("\n=====")
+        if message:
+            print(message)
+        print("=====\n")
 
 def generate_test_books(size: int) -> List['Book']:
     """Generate a list of test books for performance testing.
@@ -231,12 +244,18 @@ class BookInventory(LibraryItem):
         self.books.append(book)
         self._save_database()  # Save after adding a book
 
-    def remove_book(self, book: Book) -> bool:
-        if book in self.books:
-            self.books.remove(book)
-            self._save_database()  # Save after removing a book
-            return True
-        return False
+    def remove_book(self, title: str) -> bool:
+        """Remove a book from inventory and update the database"""
+        try:
+            book = self.find_book_by_title(title)
+            if book:
+                self.books.remove(book)
+                self._save_database()  # Save changes to CSV
+                return True
+            return False
+        except Exception as e:
+            print(f"Error removing book: {str(e)}")
+            return False
 
     def update_book(self, book: Book) -> None:
         """Update book and save changes"""
@@ -805,70 +824,106 @@ class BookUI(LibraryItem):
         else:
             self.print_formatted_separator(f"Book not found: {title}")
 
+    def remove_book_ui(self):
+        """UI for removing a book from the library"""
+        try:
+            self.print_formatted_separator("Remove Book from Library")
+            
+            if not self.inventory.books:
+                print("Library is empty. No books to remove.")
+                return
+                
+            title = input("Enter the title of the book to remove: ").strip()
+            if not title:
+                print("Title cannot be empty.")
+                return
+                
+            confirm = input(f"Are you sure you want to remove this book? (yes/no): ").strip().lower()
+            if confirm != 'yes':
+                print("Book removal cancelled.")
+                return
+                
+            if self.inventory.remove_book(title):
+                self.print_formatted_separator(f"Book '{title}' successfully removed from library!")
+            else:
+                self.print_formatted_separator(f"Book titled '{title}' not found in the library.")
+        except Exception as e:
+            print(f"Error removing book: {str(e)}")
+
     def run_library_system(self):
-        print("\nWelcome to Library Management System!")
+        try:
+            print("\nWelcome to Library Management System!")
 
-        while True:
-            try:
-                print("\nPlease select an option:")
-                print("1. Add a new book to the library")
-                print("2. Display all books in the library")
-                print("3. Show highest rated books")
-                print("4. View book history")
-                print("5. Update book quantity")
-                print("6. Sort and display books")
-                print("7. Custom binary search")
-                print("8. Practical library search")
-                print("9. Lend a book")
-                print("10. Return a book")
-                print("11. Compare sorting algorithms")
+            while True:
+                try:
+                    print("\nPlease select an option:")
+                    print("1.  Add New Book to Library")
+                    print("2.  View Complete Book Inventory")
+                    print("3.  Find Top-Rated Books")
+                    print("4.  Track Book History & Activities")
+                    print("5.  Update Available Book Copies")
+                    print("6.  Browse Books by Rating/Title/Year")
+                    print("7.  Search Books by Rating and Year")
+                    print("8.  Advanced Library Search (Genre/Student/Access)")
+                    print("9.  Lend Book to Reader")
+                    print("10. Process Book Return")
+                    print("11. Compare Sorting Speed (Performance Test)")
+                    print("12. Remove Book from Library")
 
-                while True:
-                    try:
-                        option = int(input("\nEnter 1 to 11: "))
-                        if 1 <= option <= 11:
-                            break
-                        print("Please enter a number between 1 and 11.")
-                    except ValueError:
-                        print("Please enter a valid number.")
+                    while True:
+                        try:
+                            option = int(input("\nEnter option number (1-12): "))
+                            if 1 <= option <= 12:
+                                break
+                            print("Please enter a number between 1 and 12.")
+                        except ValueError:
+                            print("Please enter a valid number.")
 
-                if option == 1:
-                    self.add_book_ui()
-                elif option == 2:
-                    self.display_all_books()
-                elif option == 3:
-                    highest_rated_books = self.analytics.get_highest_rated_books()
-                    if highest_rated_books:
-                        self.print_formatted_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
-                        for idx, book in enumerate(highest_rated_books, 1):
-                            print(f"{idx}. {book.title} by {book.author}")
-                    else:
-                        self.print_formatted_separator("No books available in the library.")
-                elif option == 4:
-                    self.view_book_history()
-                elif option == 5:
-                    self.update_book_quantity()
-                elif option == 6:
-                    self.display_sorted_books()
-                elif option == 7:
-                    self.custom_search_ui()
-                elif option == 8:
-                    self.practical_search_ui()
-                elif option == 9:
-                    self.lend_book_ui()
-                elif option == 10:
-                    self.return_book_ui()
-                elif option == 11:
-                    self.analytics.compare_sorting_algorithms()
+                    if option == 1:
+                        self.add_book_ui()
+                    elif option == 2:
+                        self.display_all_books()
+                    elif option == 3:
+                        highest_rated_books = self.analytics.get_highest_rated_books()
+                        if highest_rated_books:
+                            self.print_formatted_separator(f"Highest Rated Books (Rating: {highest_rated_books[0].rating}/5.0):")
+                            for idx, book in enumerate(highest_rated_books, 1):
+                                print(f"{idx}. {book.title} by {book.author}")
+                        else:
+                            self.print_formatted_separator("No books available in the library.")
+                    elif option == 4:
+                        self.view_book_history()
+                    elif option == 5:
+                        self.update_book_quantity()
+                    elif option == 6:
+                        self.display_sorted_books()
+                    elif option == 7:
+                        self.custom_search_ui()
+                    elif option == 8:
+                        self.practical_search_ui()
+                    elif option == 9:
+                        self.lend_book_ui()
+                    elif option == 10:
+                        self.return_book_ui()
+                    elif option == 11:
+                        self.analytics.compare_sorting_algorithms()
+                    elif option == 12:
+                        self.remove_book_ui()
 
-                anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
-                if anotherOption != 'yes':
-                    print("\nThank you for using the Library Management System!")
-                    break
+                    anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
+                    if anotherOption != 'yes':
+                        print("\nThank you for using the Library Management System!")
+                        break
 
-            except Exception as e:
-                print(f"\nAn error occurred: {str(e)}")
-                print("Please try again.")
+                except Exception as e:
+                    print(f"\nAn error occurred: {str(e)}")
+                    print("Please try again.")
+
+        except Exception as e:
+            print("\nCritical error in Library System:")
+            print(str(e))
+            print("\nPlease restart the application.")
+            return
 
 # Create instances and run the system
 inventory = BookInventory()
