@@ -94,6 +94,69 @@ class BookInventory(LibraryItem):
     def add_book(self, book: Book) -> None:
         self.books.append(book)
 
+    def practical_truth_table_search(self, genre: str, for_students: bool, borrowing_type: str) -> List[Tuple[Book, bool, bool]]:
+        """
+        A practical truth table-based search using real library criteria.
+        
+        Truth Table Variables:
+        G: Genre matches (Fiction/Non-fiction/etc.)
+        S: Student-friendly (Rating ≥ 4.0 AND Year ≥ 2000)
+        B: Book's borrowing status:
+           - 'borrow': Available for checkout (quantity > 0)
+           - 'reference': In-library use only
+           - 'any': Either borrowing or reference is acceptable
+        
+        Truth Table for Complex Search:
+        G | S | B=borrow | B=reference | for_students | borrowing_type | Result
+        -----------------------------------------------------------------
+        1 | 1 | 1 | 0 | 1 | borrow    | 1  # Student book available for checkout
+        1 | 1 | 0 | 1 | 1 | reference | 1  # Student book for in-library use
+        1 | 1 | 1 | 0 | 1 | any       | 1  # Student book, any access type
+        1 | 1 | 0 | 1 | 1 | any       | 1  # Student book, any access type
+        1 | 0 | 1 | 0 | 0 | borrow    | 1  # General book for checkout
+        1 | 0 | 0 | 1 | 0 | reference | 1  # General book for reference
+        1 | 0 | - | - | 0 | any       | 1  # General book, any access type
+        0 | - | - | - | - | -         | 0  # Wrong genre, automatic reject
+        
+        Args:
+            genre: Desired genre (case-insensitive)
+            for_students: Whether book needs to be student-friendly
+            borrowing_type: Type of access needed ('borrow', 'reference', or 'any')
+            
+        Returns:
+            List of books matching the criteria with practical library needs
+        """
+        results = []
+        
+        for book in self.books:
+            # Evaluate each practical condition
+            G = book.genre.lower() == genre.lower()  # Genre match
+            S = book.rating >= 4.0 and book.year >= 2000  # Student-friendly
+            
+            # Determine borrowing status
+            is_borrowable = book.availability and book.quantity > 0
+            is_reference = not is_borrowable and book.quantity == 0  # Reference-only books
+            
+            # If genre doesn't match, skip immediately
+            if not G:
+                continue
+                
+            # For student requests, ensure rating and year requirements
+            if for_students and not S:
+                continue
+                
+            # Check borrowing requirements based on type
+            if borrowing_type == 'borrow' and not is_borrowable:
+                continue
+            elif borrowing_type == 'reference' and not is_reference:
+                continue
+            # For 'any', we accept either borrowable or reference books
+            
+            # If we get here, book matches all requirements
+            results.append((book, is_borrowable, is_reference))
+        
+        return results
+
     def custom_binary_search(self, target_rating: float, target_year: int) -> List[Book]:
         """Custom binary search that finds books based on rating AND year criteria.
         Uses binary search with rating as primary key, then evaluates year condition.
@@ -448,6 +511,65 @@ class BookUI(LibraryItem):
         else:
             self.print_separator("No books found matching your criteria.")
 
+    def practical_search_ui(self):
+        """UI for the practical truth table-based search feature"""
+        self.print_separator("Practical Library Search")
+        print("This search helps find books based on practical library needs:")
+        print("1. Genre matching")
+        print("2. Student-friendly materials (Rating ≥ 4.0 AND Year ≥ 2000)")
+        print("3. Access type (Borrowing or Reference)")
+        
+        # Get genre
+        genre = input("\nEnter desired genre (e.g., Fiction, Non-fiction, Science, etc.): ").strip()
+        
+        # Get student-friendly requirement
+        while True:
+            student_input = input("Looking for student-friendly materials? (yes/no): ").strip().lower()
+            if student_input in ['yes', 'no']:
+                break
+            print("Please type 'yes' or 'no'.")
+        for_students = student_input == 'yes'
+
+        # Get borrowing type requirement
+        print("\nSelect access type needed:")
+        print("1. Borrowing (can check out)")
+        print("2. Reference (in-library use only)")
+        print("3. Any (either borrowing or reference)")
+        
+        while True:
+            try:
+                access_choice = int(input("Enter choice (1-3): "))
+                if 1 <= access_choice <= 3:
+                    break
+                print("Please enter a number between 1 and 3.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+
+        borrowing_type = {1: 'borrow', 2: 'reference', 3: 'any'}[access_choice]
+
+        # Perform search
+        results = self.inventory.practical_truth_table_search(genre, for_students, borrowing_type)
+
+        # Display results with practical information
+        if results:
+            self.print_separator(f"Found {len(results)} book(s) matching your needs:")
+            print(f"\nSearch Criteria:")
+            print(f"- Genre: {genre}")
+            print(f"- Student-friendly: {'Yes' if for_students else 'Not required'}")
+            print(f"- Access type: {borrowing_type.capitalize()}")
+            print("\nMatching Books:")
+            for idx, (book, is_borrowable, is_reference) in enumerate(results, 1):
+                print(f"\n{idx}. {str(book)}")
+                # Show practical status
+                print(f"   Student-friendly: {'Yes' if book.rating >= 4.0 and book.year >= 2000 else 'No'}")
+                print(f"   Access type: {'Can be borrowed' if is_borrowable else 'Reference only'}")
+        else:
+            self.print_separator("No books found matching your criteria.")
+            print("\nSuggestions:")
+            print("- Try a different genre")
+            print("- If searching for student materials, consider allowing older books")
+            print("- Try changing the access type to 'Any' for more results")
+
     def lend_book_ui(self):
         """UI for lending books"""
         self.print_separator("Lend a Book")
@@ -488,15 +610,16 @@ class BookUI(LibraryItem):
             print("5. Update book quantity")
             print("6. Sort and display books")
             print("7. Custom binary search")
-            print("8. Lend a book")
-            print("9. Return a book")
+            print("8. Practical library search")
+            print("9. Lend a book")
+            print("10. Return a book")
 
             while True:
                 try:
-                    option = int(input("\nEnter 1 to 9: "))
-                    if 1 <= option <= 9:
+                    option = int(input("\nEnter 1 to 10: "))
+                    if 1 <= option <= 10:
                         break
-                    print("Please enter a number between 1 and 9.")
+                    print("Please enter a number between 1 and 10.")
                 except ValueError:
                     print("Invalid input. Please enter a number.")
 
@@ -526,8 +649,10 @@ class BookUI(LibraryItem):
             elif option == 7:
                 self.custom_search_ui()
             elif option == 8:
-                self.lend_book_ui()
+                self.practical_search_ui()
             elif option == 9:
+                self.lend_book_ui()
+            elif option == 10:
                 self.return_book_ui()
             
             anotherOption = input("\nWould you like to do another task? Type 'yes' to continue or any other key to exit: ").strip().lower()
