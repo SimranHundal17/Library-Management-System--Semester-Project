@@ -51,16 +51,19 @@ def generate_test_books(size: int) -> List['Book']:
         test_books.append(book)
     return test_books
 
-def create_bar_graph(value1: float, value2: float, label1: str = "Value 1", 
-                    label2: str = "Value 2", max_width: int = 50) -> str:
-    """Create a simple bar graph comparison of two values."""
-    max_value = max(value1, value2)
-    bar1 = int((value1 / max_value) * max_width)
-    bar2 = int((value2 / max_value) * max_width)
+def create_bar_graph(value1: float, value2: float, label1: str = "Value 1", label2: str = "Value 2") -> str:
+    """Create a simple visual comparison of two values using bar graphs."""
+    max_width = 30  # Fixed width for simplicity
     
-    graph = f"\n{label1} ({value1:.6f}s)\n"
+    # Calculate the bars
+    max_value = max(value1, value2)
+    bar1 = int((value1 / max_value) * max_width) if max_value > 0 else 0
+    bar2 = int((value2 / max_value) * max_width) if max_value > 0 else 0
+    
+    # Create the visualization
+    graph = f"\n{label1}: {value1:.6f}s\n"
     graph += "█" * bar1
-    graph += f"\n\n{label2} ({value2:.6f}s)\n"
+    graph += f"\n\n{label2}: {value2:.6f}s\n"
     graph += "█" * bar2
     
     return graph
@@ -506,51 +509,38 @@ class BookAnalytics(LibraryItem):
         self.title_sort = MergeTitleSort()
         self.year_sort = MergeYearSort()
 
-    def compare_sorting_algorithms(self):
-        try:
-            if not self.books:
-                print("\nNo books available for comparison.")
-                return
+    def print_formatted_separator(self, message: str = "") -> None:
+        """Creates a formatted separator with an optional message."""
+        print_formatted_separator(message)
 
-            print("\nSorting Algorithm Performance Analysis")
-            print("-" * 50)
+    def compare_sorting_algorithms(self):
+        """Compare performance of sorting algorithms using test data."""
+        try:
+            self.print_formatted_separator("Sorting Algorithm Performance")
             
-            # Test with different dataset sizes
-            sizes = [min(100, len(self.books)), min(500, len(self.books))]
-            sizes = list(set(sizes))  # Remove duplicates
+            # Generate test dataset
+            test_size = 100  # reasonable size for testing
+            test_books = generate_test_books(test_size)
+            print(f"Testing with {test_size} books\n")
             
-            for size in sizes:
-                if size > len(self.books):
-                    continue
-                    
-                print(f"\nTesting with {size} books:")
-                print("-" * 30)
-                
-                # Create test subset
-                test_books = self.books[:size]
-                
-                # Test Bubble Sort
-                try:
-                    start_time = datetime.now()
-                    self.rating_sort.sort(test_books)
-                    bubble_duration = (datetime.now() - start_time).total_seconds()
-                except Exception as e:
-                    print(f"Bubble sort failed: {str(e)}")
-                    continue
-                
-                # Test Merge Sort
-                try:
-                    start_time = datetime.now()
-                    self.title_sort.sort(test_books)
-                    merge_duration = (datetime.now() - start_time).total_seconds()
-                except Exception as e:
-                    print(f"Merge sort failed: {str(e)}")
-                    continue
-                
-                print(f"\nBubble Sort: {bubble_duration:.6f}s")
-                print(f"Merge Sort: {merge_duration:.6f}s")
-                if merge_duration > 0:
-                    print(f"\nBubble Sort is {bubble_duration/merge_duration:.2f}x slower")
+            # Test Bubble Sort
+            start_time = datetime.now()
+            self.rating_sort.sort(test_books)
+            bubble_duration = (datetime.now() - start_time).total_seconds()
+            
+            # Test Merge Sort
+            start_time = datetime.now()
+            self.title_sort.sort(test_books)
+            merge_duration = (datetime.now() - start_time).total_seconds()
+            
+            # Display results with visual comparison
+            print(create_bar_graph(
+                bubble_duration, 
+                merge_duration,
+                "Bubble Sort",
+                "Merge Sort"
+            ))
+            
         except Exception as e:
             print(f"Error comparing algorithms: {str(e)}")
 
@@ -804,17 +794,29 @@ class BookUI(LibraryItem):
             self.print_formatted_separator("No books found matching your criteria.")
 
     def practical_search_ui(self):
+        """Handles advanced library search with genre, student-friendly, and access type criteria."""
         try:
             self.print_formatted_separator("Advanced Library Search")
             
             if not self.inventory.books:
                 self.print_formatted_separator("Library is empty. No books to search.")
                 return
+                
+            # Display available genres
+            print("\nAvailable Genres:")
+            for i, genre in enumerate(self.valid_genres, 1):
+                print(f"{i}. {genre}")
             
-            genre = input("\nEnter desired genre: ").strip()
-            if not genre:
-                self.print_formatted_separator("Genre cannot be empty.")
-                return
+            # Genre selection with validation
+            while True:
+                try:
+                    genre_choice = int(input("\nSelect genre number: "))
+                    if 1 <= genre_choice <= len(self.valid_genres):
+                        genre = self.valid_genres[genre_choice - 1]
+                        break
+                    print(f"Please enter a number between 1 and {len(self.valid_genres)}")
+                except ValueError:
+                    print("Please enter a valid number")
 
             while True:
                 student_input = input("Looking for student-friendly materials? (yes/no): ").strip().lower()
@@ -929,7 +931,7 @@ class BookUI(LibraryItem):
                     print("3.  Find Top-Rated Books")
                     print("4.  Track Book History & Activities")
                     print("5.  Update Available Book Copies")
-                    print("6.  Browse Books by Rating/Title/Year")
+                    print("6.  Sort Books by Rating/Title/Year")
                     print("7.  Search Books by Rating and Year")
                     print("8.  Advanced Library Search (Genre/Student/Access)")
                     print("9.  Lend Book to Reader")
